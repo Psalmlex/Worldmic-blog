@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Dashboard</div>
+      <div class="topbar-actions">
+        <a href="/admin-create.html" class="btn btn-primary btn-sm">+ New Post</a>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <!-- Stats -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="skeleton" style="height:80px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:80px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:80px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:80px;border-radius:8px"></div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <!-- Recent Posts -->
+        <div class="table-card">
+          <div class="table-header"><h2>Recent Posts</h2><a href="/admin-posts.html" class="btn btn-ghost btn-sm">View All</a></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Title</th><th>Status</th><th>Views</th></tr></thead>
+            <tbody id="recentPostsBody"><tr><td colspan="3" style="text-align:center;padding:20px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table></div>
+        </div>
+        <!-- Recent Comments -->
+        <div class="table-card">
+          <div class="table-header"><h2>Pending Comments</h2><a href="/admin-comments.html" class="btn btn-ghost btn-sm">Manage</a></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Comment</th><th>Action</th></tr></thead>
+            <tbody id="recentCommentsBody"><tr><td colspan="3" style="text-align:center;padding:20px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- AI Quick Actions -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>🤖 Quick AI Actions</h2><span style="font-size:0.8rem;color:#7a7a8a">Powered by Mica AI</span></div>
+        <div style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+          <div style="background:#f0f4ff;border-radius:10px;padding:18px;cursor:pointer" onclick="aiAction('write')">
+            <div style="font-size:1.5rem;margin-bottom:8px">✏️</div>
+            <div style="font-weight:700;color:#1a1a2e;margin-bottom:4px">Write New Post</div>
+            <div style="font-size:0.8rem;color:#7a7a8a">AI writes a full post in your tone</div>
+          </div>
+          <div style="background:#f0fdf4;border-radius:10px;padding:18px;cursor:pointer" onclick="aiAction('reply')">
+            <div style="font-size:1.5rem;margin-bottom:8px">💬</div>
+            <div style="font-weight:700;color:#1a1a2e;margin-bottom:4px">Reply to Comments</div>
+            <div style="font-size:0.8rem;color:#7a7a8a">Auto-generate comment replies</div>
+          </div>
+          <div style="background:#fff7ed;border-radius:10px;padding:18px;cursor:pointer" onclick="aiAction('trending')">
+            <div style="font-size:1.5rem;margin-bottom:8px">🔥</div>
+            <div style="font-weight:700;color:#1a1a2e;margin-bottom:4px">Trending Ideas</div>
+            <div style="font-size:0.8rem;color:#7a7a8a">Get hot topic suggestions</div>
+          </div>
+          <div style="background:#fdf4ff;border-radius:10px;padding:18px;cursor:pointer" onclick="aiAction('image')">
+            <div style="font-size:1.5rem;margin-bottom:8px">🖼️</div>
+            <div style="font-weight:700;color:#1a1a2e;margin-bottom:4px">Generate Image</div>
+            <div style="font-size:0.8rem;color:#7a7a8a">Create a featured image</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-dashboard.html');
+    loadStats();
+    loadRecentPosts();
+    loadPendingComments();
+  });
+
+  async function loadStats() {
+    try {
+      const [postsData, commentsData, adsData] = await Promise.all([
+        adminFetch('/posts/admin/all'),
+        adminFetch('/comments/admin/all'),
+        adminFetch('/ads/admin/all')
+      ]);
+      const published = postsData.filter(p => p.status === 'published').length;
+      const pending = commentsData.filter(c => c.status === 'pending').length;
+      const totalViews = postsData.reduce((s, p) => s + p.views, 0);
+      const activeAds = adsData.filter(a => a.isActive).length;
+
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></div><div class="stat-label">Total Posts</div><div class="stat-value">${postsData.length}</div><div class="stat-change up">${published} published</div></div>
+        <div class="stat-card"><div class="stat-icon green"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></div><div class="stat-label">Total Views</div><div class="stat-value">${totalViews.toLocaleString()}</div><div class="stat-change up">All time</div></div>
+        <div class="stat-card"><div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5c0-1.38-1.12-2.5-2.5-2.5h-15C2.12 4 1 5.12 1 6.5v11C1 18.88 2.12 20 3.5 20H19l4 4V6.5z"/></svg></div><div class="stat-label">Pending Comments</div><div class="stat-value">${pending}</div><div class="stat-change ${pending > 0 ? 'down' : 'up'}">Needs review</div></div>
+        <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><div class="stat-label">Active Ads</div><div class="stat-value">${activeAds}</div><div class="stat-change up">${adsData.length} total</div></div>`;
+    } catch (err) { showToast('Failed to load stats: ' + err.message, 'error'); }
+  }
+
+  async function loadRecentPosts() {
+    try {
+      const posts = await adminFetch('/posts/admin/all');
+      const body = document.getElementById('recentPostsBody');
+      body.innerHTML = posts.slice(0, 8).map(p => `
+        <tr>
+          <td><a href="/post.html?id=${p._id}" target="_blank" style="font-weight:600;color:#1a1a2e;font-size:0.85rem">${p.title.substring(0,40)}…</a></td>
+          <td><span class="badge badge-${p.status}">${p.status}</span></td>
+          <td>${p.views}</td>
+        </tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#9a9aaa">No posts yet</td></tr>';
+    } catch {}
+  }
+
+  async function loadPendingComments() {
+    try {
+      const comments = await adminFetch('/comments/admin/all');
+      const pending = comments.filter(c => c.status === 'pending').slice(0, 6);
+      const body = document.getElementById('recentCommentsBody');
+      body.innerHTML = pending.map(c => `
+        <tr>
+          <td style="font-weight:600;font-size:0.85rem">${c.name}</td>
+          <td style="font-size:0.82rem;color:#555">${c.content.substring(0,50)}…</td>
+          <td><button class="btn btn-sm btn-success" onclick="approveComment('${c._id}', this)">✓</button></td>
+        </tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#9a9aaa">No pending comments</td></tr>';
+    } catch {}
+  }
+
+  async function approveComment(id, btn) {
+    btn.disabled = true;
+    try {
+      await adminFetch(`/comments/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'approved' }) });
+      btn.closest('tr').remove();
+      showToast('Comment approved', 'success');
+    } catch (err) { showToast(err.message, 'error'); btn.disabled = false; }
+  }
+
+  function aiAction(type) {
+    const fabBtn = document.getElementById('aiFabBtn');
+    if (fabBtn) { fabBtn.click(); }
+    setTimeout(() => {
+      const input = document.getElementById('aiInput');
+      const prompts = {
+        write: 'Write a new trending blog post for World Mic',
+        reply: 'Auto-reply to all pending comments professionally',
+        trending: 'Give me 5 trending blog post ideas for this week',
+        image: 'Generate a featured image for my latest post'
+      };
+      if (input) input.value = prompts[type] || '';
+    }, 400);
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="search-hero">
+    <h1>Search World Mic</h1>
+    <div class="search-bar-large">
+      <input type="text" id="searchInput" placeholder="Search posts, topics, categories…" />
+      <button onclick="doSearchPage()">Search</button>
+    </div>
+  </div>
+
+  <div class="main-layout" style="padding-top:28px">
+    <main>
+      <div id="searchResults"></div>
+    </main>
+    <aside class="sidebar">
+      <div class="widget">
+        <h3 class="widget-title">💡 Try Searching</h3>
+        <ul class="trending-list">
+          <li class="trending-item"><div class="trending-title" onclick="setSearch('Technology')" style="cursor:pointer;color:var(--primary)">Technology</div></li>
+          <li class="trending-item"><div class="trending-title" onclick="setSearch('Health')" style="cursor:pointer;color:var(--primary)">Health</div></li>
+          <li class="trending-item"><div class="trending-title" onclick="setSearch('Africa')" style="cursor:pointer;color:var(--primary)">Africa</div></li>
+          <li class="trending-item"><div class="trending-title" onclick="setSearch('Business')" style="cursor:pointer;color:var(--primary)">Business</div></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const q = new URLSearchParams(location.search).get('q') || '';
+
+    async function doSearchPage() {
+      const query = document.getElementById('searchInput').value.trim() || q;
+      if (!query) return;
+      history.pushState({}, '', `/search.html?q=${encodeURIComponent(query)}`);
+      document.title = `"${query}" — World Mic`;
+      const results = document.getElementById('searchResults');
+      results.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+      try {
+        const data = await apiFetch(`/posts?search=${encodeURIComponent(query)}&limit=12`);
+        results.innerHTML = data.posts.length ?
+          `<div class="section-header"><h2 class="section-title">${data.total} result${data.total !== 1 ? 's' : ''} for "${query}"</h2></div><div class="posts-grid">${data.posts.map(postCardHTML).join('')}</div>` :
+          `<div class="empty-state"><h3>No results for "${query}"</h3><p>Try different keywords or browse categories.</p><a href="/category.html" class="btn btn-primary" style="margin-top:16px">Browse Categories</a></div>`;
+      } catch { results.innerHTML = `<div class="empty-state"><h3>Search failed</h3></div>`; }
+    }
+
+    function setSearch(term) { document.getElementById('searchInput').value = term; doSearchPage(); }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (q) { document.getElementById('searchInput').value = q; doSearchPage(); }
+      document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearchPage(); });
+    });
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

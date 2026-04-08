@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comments — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Comments</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="aiReplyAll()">🤖 AI Reply All</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" data-filter="all" onclick="setFilter('all',this)">All</button>
+        <button class="btn btn-ghost btn-sm active" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
+        <button class="btn btn-ghost btn-sm" data-filter="approved" onclick="setFilter('approved',this)">Approved</button>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><h2 id="tableTitle">Pending Comments</h2><span id="commentCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Commenter</th><th>Post</th><th>Comment</th><th>AI Reply</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="commentsBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reply Modal -->
+<div class="modal-overlay" id="replyModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">AI Reply</div><button class="modal-close" onclick="closeModal('replyModal')">✕</button></div>
+    <div class="modal-body">
+      <div id="replyCommentText" style="background:#f8f9fc;padding:12px;border-radius:7px;margin-bottom:14px;font-size:0.875rem;color:#555"></div>
+      <label class="form-label">Reply</label>
+      <textarea class="form-input" id="replyText" style="min-height:100px;resize:vertical"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('replyModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="sendReply()">Send Reply</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let allComments = [], currentFilter = 'pending', activeCommentId = null;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-comments.html');
+    loadComments();
+  });
+
+  async function loadComments() {
+    try {
+      allComments = await adminFetch('/comments/admin/all');
+      renderTable();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderTable() {
+    const filtered = allComments.filter(c => currentFilter === 'all' || c.status === currentFilter);
+    document.getElementById('commentCount').textContent = `${filtered.length} comment${filtered.length !== 1 ? 's' : ''}`;
+    const body = document.getElementById('commentsBody');
+    if (!filtered.length) { body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#9a9aaa">No ${currentFilter} comments.</td></tr>`; return; }
+    body.innerHTML = filtered.map(c => `
+      <tr>
+        <td><div style="font-weight:600">${c.name}</div><div style="font-size:0.75rem;color:#9a9aaa">${c.email || ''}</div></td>
+        <td style="font-size:0.82rem;color:#555;max-width:120px">${c.postId?.title || 'Unknown'}</td>
+        <td style="font-size:0.82rem;max-width:200px">${c.content.substring(0,80)}…</td>
+        <td style="font-size:0.8rem;max-width:150px">
+          ${c.aiReply ? `<span style="color:#16a34a">✓ Generated</span><br><small style="color:#7a7a8a">${c.replyStatus}</small>` : '<span style="color:#9a9aaa">—</span>'}
+        </td>
+        <td><span class="badge badge-${c.status}">${c.status}</span></td>
+        <td>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${c.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="updateStatus('${c._id}','approved')">✓ Approve</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="openReply('${c._id}')">💬 Reply</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteComment('${c._id}')">✕</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tableTitle').textContent = f === 'all' ? 'All Comments' : f.charAt(0).toUpperCase()+f.slice(1)+' Comments';
+    renderTable();
+  }
+
+  async function updateStatus(id, status) {
+    try {
+      await adminFetch(`/comments/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+      showToast(`Comment ${status}`, 'success');
+      loadComments();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteComment(id) {
+    if (!confirm('Delete this comment?')) return;
+    try {
+      await adminFetch(`/comments/${id}`, { method: 'DELETE' });
+      showToast('Comment deleted', 'success');
+      loadComments();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function openReply(id) {
+    activeCommentId = id;
+    const comment = allComments.find(c => c._id === id);
+    document.getElementById('replyCommentText').textContent = `"${comment?.content}"`;
+    document.getElementById('replyText').value = comment?.aiReply || '';
+    document.getElementById('replyModal').classList.add('open');
+  }
+
+  async function sendReply() {
+    const reply = document.getElementById('replyText').value.trim();
+    if (!reply) { showToast('Enter a reply', 'error'); return; }
+    try {
+      await adminFetch(`/comments/${activeCommentId}`, { method: 'PUT', body: JSON.stringify({ aiReply: reply, replyStatus: 'sent' }) });
+      showToast('Reply saved and sent!', 'success');
+      closeModal('replyModal');
+      loadComments();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function aiReplyAll() {
+    const pending = allComments.filter(c => c.status === 'approved' && c.replyStatus === 'none');
+    if (!pending.length) { showToast('No comments need AI replies', 'info'); return; }
+    if (!confirm(`Generate AI replies for ${pending.length} comment(s)?`)) return;
+    try {
+      const data = await adminFetch('/ai/reply-comments', { method: 'POST', body: JSON.stringify({ commentIds: [] }) });
+      showToast(`${data.count} replies generated!`, 'success');
+      loadComments();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

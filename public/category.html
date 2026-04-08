@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Categories — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+  <div class="main-layout" style="padding-top:28px">
+    <main>
+      <div class="breadcrumb"><a href="/">Home</a> <span>›</span> <span id="pageTitle">Categories</span></div>
+      <div id="topAd"></div>
+      <div class="section-header"><h2 class="section-title" id="heading">All Posts</h2></div>
+      <div class="posts-grid" id="postsGrid"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+    <aside class="sidebar">
+      <div class="widget">
+        <h3 class="widget-title">📂 All Categories</h3>
+        <ul class="trending-list" id="catList"></ul>
+      </div>
+      <div id="sidebarAd"></div>
+    </aside>
+  </div>
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const catName = new URLSearchParams(location.search).get('name') || '';
+    let currentPage = 1;
+
+    async function load(page = 1) {
+      const grid = document.getElementById('postsGrid');
+      renderSkeletons(grid, 6);
+      try {
+        const data = await apiFetch(`/posts?page=${page}&limit=9${catName ? `&category=${encodeURIComponent(catName)}` : ''}`);
+        document.getElementById('heading').textContent = catName ? `${catName} Posts` : 'All Posts';
+        document.getElementById('pageTitle').textContent = catName || 'Categories';
+        document.title = `${catName || 'Categories'} — World Mic`;
+        grid.innerHTML = data.posts.length ? data.posts.map(postCardHTML).join('') :
+          `<div class="empty-state"><h3>No posts in this category</h3><p>Check back soon.</p></div>`;
+        renderPag(page, data.pages);
+      } catch (err) { grid.innerHTML = `<div class="empty-state"><h3>Error loading posts</h3></div>`; }
+    }
+
+    function renderPag(cur, total) {
+      const el = document.getElementById('pagination');
+      if (total <= 1) { el.innerHTML = ''; return; }
+      let h = cur > 1 ? `<button class="page-btn" onclick="goPage(${cur-1})">‹</button>` : '';
+      for (let i = 1; i <= total; i++) h += `<button class="page-btn ${i===cur?'active':''}" onclick="goPage(${i})">${i}</button>`;
+      h += cur < total ? `<button class="page-btn" onclick="goPage(${cur+1})">›</button>` : '';
+      el.innerHTML = h;
+    }
+    function goPage(p) { currentPage = p; load(p); window.scrollTo({top:0,behavior:'smooth'}); }
+
+    async function loadCats() {
+      try {
+        const cats = await apiFetch('/posts/meta/categories');
+        document.getElementById('catList').innerHTML = cats.map(c=>
+          `<li class="trending-item"><div class="trending-title"><a href="/category.html?name=${encodeURIComponent(c)}" class="${c===catName?'active':''}">${c}</a></div></li>`).join('');
+      } catch {}
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { load(); loadCats(); renderAds('topAd','top'); renderAds('sidebarAd','sidebar'); });
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

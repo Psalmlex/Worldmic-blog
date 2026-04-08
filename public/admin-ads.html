@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ads — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Ad Management</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="openAdModal()">+ New Ad</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <!-- Stats -->
+      <div class="stats-grid" id="adStats" style="grid-template-columns:repeat(4,1fr)"></div>
+
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>All Ads</h2><span id="adCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Type</th><th>Position</th><th>Status</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Actions</th></tr></thead>
+            <tbody id="adsBody"><tr><td colspan="8" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ad Modal -->
+<div class="modal-overlay" id="adModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header"><div class="modal-title" id="adModalTitle">New Ad</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="adId" />
+      <div class="form-group"><label class="form-label">Ad Name *</label><input class="form-input" id="adName" placeholder="e.g. Header Banner" /></div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-select" id="adType" onchange="toggleAdType()">
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+            <option value="html">HTML</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Position</label>
+          <select class="form-select" id="adPosition">
+            <option value="top">Top of Post</option>
+            <option value="middle">Middle of Post</option>
+            <option value="bottom">Bottom of Post</option>
+            <option value="sidebar">Sidebar</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="imageUrlGroup" style="display:none">
+        <label class="form-label">Image URL</label>
+        <input class="form-input" id="adImageUrl" placeholder="https://example.com/banner.jpg" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" id="contentLabel">Ad Content / Text</label>
+        <textarea class="form-input" id="adContent" placeholder="Ad text or HTML code…" style="min-height:100px;resize:vertical"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link URL</label>
+        <input class="form-input" id="adLinkUrl" placeholder="https://yoursite.com" />
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="adActive" style="width:16px;height:16px;accent-color:#1a5eb8" checked />
+        <label for="adActive" style="font-size:0.875rem;font-weight:600;cursor:pointer">Active (visible on site)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAd()">Save Ad</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let allAds = [], editingId = null;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-ads.html');
+    loadAds();
+  });
+
+  async function loadAds() {
+    try {
+      allAds = await adminFetch('/ads/admin/all');
+      renderStats();
+      renderTable();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderStats() {
+    const active = allAds.filter(a => a.isActive).length;
+    const totalImpr = allAds.reduce((s,a) => s + a.impressions, 0);
+    const totalClicks = allAds.reduce((s,a) => s + a.clicks, 0);
+    const ctr = totalImpr > 0 ? ((totalClicks/totalImpr)*100).toFixed(2) : '0.00';
+    document.getElementById('adStats').innerHTML = `
+      <div class="stat-card"><div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div><div class="stat-label">Total Ads</div><div class="stat-value">${allAds.length}</div></div>
+      <div class="stat-card"><div class="stat-icon green"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div><div class="stat-label">Active</div><div class="stat-value">${active}</div></div>
+      <div class="stat-card"><div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5z"/></svg></div><div class="stat-label">Impressions</div><div class="stat-value">${totalImpr.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg></div><div class="stat-label">CTR</div><div class="stat-value">${ctr}%</div></div>`;
+  }
+
+  function renderTable() {
+    document.getElementById('adCount').textContent = `${allAds.length} ad${allAds.length !== 1 ? 's' : ''}`;
+    const body = document.getElementById('adsBody');
+    if (!allAds.length) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9a9aaa">No ads yet. Create your first ad!</td></tr>'; return; }
+    body.innerHTML = allAds.map(a => {
+      const ctr = a.impressions > 0 ? ((a.clicks/a.impressions)*100).toFixed(2) : '0.00';
+      return `<tr>
+        <td><div style="font-weight:600">${a.name}</div>${a.linkUrl ? `<div style="font-size:0.75rem;color:#9a9aaa">${a.linkUrl}</div>` : ''}</td>
+        <td><span class="badge badge-draft">${a.type}</span></td>
+        <td><span style="font-size:0.82rem;background:#f0f4ff;padding:3px 8px;border-radius:4px;color:#1a5eb8;font-weight:600">${a.position}</span></td>
+        <td><span class="badge ${a.isActive ? 'badge-active' : 'badge-inactive'}">${a.isActive ? 'Active' : 'Inactive'}</span></td>
+        <td>${a.impressions.toLocaleString()}</td>
+        <td>${a.clicks.toLocaleString()}</td>
+        <td>${ctr}%</td>
+        <td>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-ghost btn-sm" onclick="editAd('${a._id}')">Edit</button>
+            <button class="btn btn-sm" style="background:${a.isActive?'#fee2e2;color:#e63a2e':'#dcfce7;color:#16a34a'}" onclick="toggleAd('${a._id}',${a.isActive})">${a.isActive ? 'Pause' : 'Activate'}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAd('${a._id}')">✕</button>
+          </div>
+        </td>
+      </tr>`;}).join('');
+  }
+
+  function openAdModal(id = null) {
+    editingId = id;
+    if (!id) {
+      ['adId','adName','adImageUrl','adContent','adLinkUrl'].forEach(f => { const el=document.getElementById(f); if(el) el.value=''; });
+      document.getElementById('adType').value = 'text';
+      document.getElementById('adPosition').value = 'top';
+      document.getElementById('adActive').checked = true;
+      document.getElementById('adModalTitle').textContent = 'New Ad';
+    }
+    toggleAdType();
+    document.getElementById('adModal').classList.add('open');
+  }
+
+  function editAd(id) {
+    const ad = allAds.find(a => a._id === id);
+    if (!ad) return;
+    document.getElementById('adId').value = ad._id;
+    document.getElementById('adName').value = ad.name;
+    document.getElementById('adType').value = ad.type;
+    document.getElementById('adPosition').value = ad.position;
+    document.getElementById('adImageUrl').value = ad.imageUrl || '';
+    document.getElementById('adContent').value = ad.content;
+    document.getElementById('adLinkUrl').value = ad.linkUrl || '';
+    document.getElementById('adActive').checked = ad.isActive;
+    document.getElementById('adModalTitle').textContent = 'Edit Ad';
+    openAdModal(id);
+  }
+
+  function toggleAdType() {
+    const type = document.getElementById('adType').value;
+    document.getElementById('imageUrlGroup').style.display = type === 'image' ? '' : 'none';
+    document.getElementById('contentLabel').textContent = type === 'html' ? 'HTML Code' : type === 'image' ? 'Alt Text' : 'Ad Text';
+  }
+
+  async function saveAd() {
+    const name = document.getElementById('adName').value.trim();
+    const content = document.getElementById('adContent').value.trim();
+    if (!name) { showToast('Ad name is required', 'error'); return; }
+    const data = {
+      name, content, type: document.getElementById('adType').value,
+      position: document.getElementById('adPosition').value,
+      imageUrl: document.getElementById('adImageUrl').value.trim(),
+      linkUrl: document.getElementById('adLinkUrl').value.trim(),
+      isActive: document.getElementById('adActive').checked,
+    };
+    try {
+      if (editingId) {
+        await adminFetch(`/ads/${editingId}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast('Ad updated!', 'success');
+      } else {
+        await adminFetch('/ads', { method: 'POST', body: JSON.stringify(data) });
+        showToast('Ad created!', 'success');
+      }
+      closeModal(); loadAds();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function toggleAd(id, isActive) {
+    try {
+      await adminFetch(`/ads/${id}`, { method: 'PUT', body: JSON.stringify({ isActive: !isActive }) });
+      showToast(`Ad ${!isActive ? 'activated' : 'paused'}`, 'success');
+      loadAds();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteAd(id) {
+    if (!confirm('Delete this ad?')) return;
+    try { await adminFetch(`/ads/${id}`, { method: 'DELETE' }); showToast('Ad deleted', 'success'); loadAds(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function closeModal() { document.getElementById('adModal').classList.remove('open'); editingId = null; }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Mic — Voices from Every Corner</title>
+  <meta name="description" content="World Mic — A multi-category blog covering news, culture, tech, and more." />
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="apple-touch-icon" href="/images/app-icon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="category-nav">
+    <div class="category-nav-inner" id="categoryNav">
+      <div class="cat-pill active" data-cat="">All</div>
+    </div>
+  </div>
+
+  <!-- FEATURED POST HERO -->
+  <section class="hero-section" id="heroSection" style="display:none"></section>
+
+  <div class="main-layout">
+    <!-- MAIN CONTENT -->
+    <main>
+      <div class="section-header">
+        <h2 class="section-title" id="postsHeading">Latest Posts</h2>
+      </div>
+      <div class="posts-grid" id="postsGrid"></div>
+      <div id="topAd"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div id="sidebarTopAd"></div>
+      <div class="widget">
+        <h3 class="widget-title">🔥 Trending</h3>
+        <ul class="trending-list" id="trendingList"></ul>
+      </div>
+      <div class="widget">
+        <h3 class="widget-title">📂 Categories</h3>
+        <ul class="trending-list" id="categoriesList"></ul>
+      </div>
+      <div id="sidebarBottomAd"></div>
+    </aside>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let currentPage = 1, currentCategory = '', totalPages = 1;
+
+    async function loadPosts(page = 1, category = '') {
+      const grid = document.getElementById('postsGrid');
+      renderSkeletons(grid, 6);
+      try {
+        const data = await apiFetch(`/posts?page=${page}&limit=9${category ? `&category=${encodeURIComponent(category)}` : ''}`);
+        totalPages = data.pages;
+        if (!data.posts.length) {
+          grid.innerHTML = `<div class="empty-state full-width"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><h3>No posts yet</h3><p>Check back soon for new content.</p></div>`;
+          return;
+        }
+        // Show first post as hero on page 1
+        if (page === 1 && !category) {
+          const [featured, ...rest] = data.posts;
+          renderHero(featured);
+          grid.innerHTML = rest.map(postCardHTML).join('');
+        } else {
+          document.getElementById('heroSection').style.display = 'none';
+          grid.innerHTML = data.posts.map(postCardHTML).join('');
+        }
+        renderPagination(page, data.pages);
+      } catch (err) {
+        grid.innerHTML = `<div class="empty-state full-width"><h3>Failed to load posts</h3><p>${err.message}</p></div>`;
+      }
+    }
+
+    function renderHero(post) {
+      const hero = document.getElementById('heroSection');
+      hero.style.display = '';
+      hero.innerHTML = `
+        <div class="hero-inner">
+          <div class="hero-badge">Featured</div>
+          <h1 class="hero-title"><a href="/post.html?id=${post._id}" style="color:inherit">${post.title}</a></h1>
+          <p class="hero-excerpt">${post.excerpt || ''}</p>
+          <div class="hero-meta">
+            <span>${formatDate(post.createdAt, true)}</span>
+            <span>·</span>
+            <span>${post.category || 'General'}</span>
+            <span>·</span>
+            <span>${readingTime(post.content)} min read</span>
+          </div>
+          <a href="/post.html?id=${post._id}" class="btn btn-primary" style="margin-top:20px">Read Article →</a>
+        </div>`;
+    }
+
+    function renderPagination(current, total) {
+      const el = document.getElementById('pagination');
+      if (total <= 1) { el.innerHTML = ''; return; }
+      let html = '';
+      if (current > 1) html += `<button class="page-btn" onclick="changePage(${current-1})">‹</button>`;
+      for (let i = 1; i <= total; i++) {
+        if (i === 1 || i === total || Math.abs(i - current) <= 1)
+          html += `<button class="page-btn ${i === current ? 'active' : ''}" onclick="changePage(${i})">${i}</button>`;
+        else if (Math.abs(i - current) === 2) html += `<span style="padding:0 4px;color:#ccc">…</span>`;
+      }
+      if (current < total) html += `<button class="page-btn" onclick="changePage(${current+1})">›</button>`;
+      el.innerHTML = html;
+    }
+
+    function changePage(p) { currentPage = p; loadPosts(p, currentCategory); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+    async function loadCategories() {
+      try {
+        const cats = await apiFetch('/posts/meta/categories');
+        const nav = document.getElementById('categoryNav');
+        const list = document.getElementById('categoriesList');
+        cats.forEach(cat => {
+          const pill = document.createElement('div');
+          pill.className = 'cat-pill'; pill.dataset.cat = cat; pill.textContent = cat;
+          pill.addEventListener('click', () => filterByCategory(cat, pill));
+          nav.appendChild(pill);
+          list.innerHTML += `<li class="trending-item"><div class="trending-title"><a href="/category.html?name=${encodeURIComponent(cat)}">${cat}</a></div></li>`;
+        });
+      } catch {}
+    }
+
+    async function loadTrending() {
+      try {
+        const data = await apiFetch('/posts?limit=5&page=1');
+        const sorted = [...(data.posts || [])].sort((a, b) => b.views - a.views).slice(0, 5);
+        document.getElementById('trendingList').innerHTML = sorted.map((p, i) =>
+          `<li class="trending-item"><div class="trending-num">${String(i+1).padStart(2,'0')}</div><div><div class="card-category" style="margin:0 0 4px">${p.category}</div><a class="trending-title" href="/post.html?id=${p._id}">${p.title}</a></div></li>`
+        ).join('');
+      } catch {}
+    }
+
+    function filterByCategory(cat, el) {
+      currentCategory = cat === currentCategory ? '' : cat;
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === currentCategory));
+      document.getElementById('postsHeading').textContent = currentCategory ? `${currentCategory} Posts` : 'Latest Posts';
+      currentPage = 1;
+      loadPosts(1, currentCategory);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPosts(); loadCategories(); loadTrending();
+      renderAds('topAd', 'top');
+      renderAds('sidebarTopAd', 'sidebar');
+      renderAds('sidebarBottomAd', 'sidebar');
+    });
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>
+<!-- PWA Service Worker (appended) -->

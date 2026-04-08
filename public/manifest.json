@@ -1,0 +1,42 @@
+{
+  "name": "World Mic",
+  "short_name": "WorldMic",
+  "description": "Voices from Every Corner of the World — Multi-category blog platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a5eb8",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["news", "lifestyle", "education"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Search",
+      "short_name": "Search",
+      "description": "Search World Mic posts",
+      "url": "/search.html",
+      "icons": [{ "src": "/images/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Categories",
+      "short_name": "Categories",
+      "description": "Browse by category",
+      "url": "/category.html",
+      "icons": [{ "src": "/images/favicon.svg", "sizes": "any" }]
+    }
+  ]
+}

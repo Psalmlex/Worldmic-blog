@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Post — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="main-layout" style="padding-top:28px">
+    <main>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div id="topAd"></div>
+      <div id="postContent"></div>
+      <div id="middleAd" style="margin:32px 0"></div>
+      <div id="commentsSection"></div>
+      <div id="bottomAd"></div>
+    </main>
+    <aside class="sidebar">
+      <div id="sidebarAd"></div>
+      <div class="widget" id="relatedWidget" style="display:none">
+        <h3 class="widget-title">📖 Related Posts</h3>
+        <ul class="trending-list" id="relatedPosts"></ul>
+      </div>
+      <div class="widget">
+        <h3 class="widget-title">📂 Categories</h3>
+        <ul class="trending-list" id="categoriesList"></ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const postId = new URLSearchParams(location.search).get('id');
+
+    async function loadPost() {
+      if (!postId) { location.href = '/'; return; }
+      const container = document.getElementById('postContent');
+      container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+      try {
+        const post = await apiFetch(`/posts/${postId}`);
+        document.title = `${post.title} — World Mic`;
+        document.querySelector('meta[name="description"]')?.remove();
+        const meta = document.createElement('meta');
+        meta.name = 'description'; meta.content = post.seoDescription || post.excerpt || '';
+        document.head.appendChild(meta);
+
+        document.getElementById('breadcrumb').innerHTML = `
+          <a href="/">Home</a> <span>›</span>
+          <a href="/category.html?name=${encodeURIComponent(post.category)}">${post.category}</a>
+          <span>›</span> <span>${post.title.substring(0,50)}…</span>`;
+
+        container.innerHTML = `
+          ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
+          <div class="post-content-area">
+            <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
+            <h1 class="post-title">${post.title}</h1>
+            <div class="post-meta-bar">
+              <span>📅 ${formatDate(post.createdAt, true)}</span>
+              <span>✍️ ${post.author || 'World Mic'}</span>
+              <span>⏱ ${readingTime(post.content)} min read</span>
+              <span>👁 ${post.views} views</span>
+            </div>
+            <div class="post-body">${post.content}</div>
+            ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>` : ''}
+            <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
+            </div>
+          </div>`;
+
+        loadComments(postId);
+        loadRelated(post.category, postId);
+        renderAds('topAd', 'top');
+        renderAds('middleAd', 'middle');
+        renderAds('bottomAd', 'bottom');
+        renderAds('sidebarAd', 'sidebar');
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><h3>Post not found</h3><p>${err.message}</p><a href="/" class="btn btn-primary" style="margin-top:16px">← Go Home</a></div>`;
+      }
+    }
+
+    async function loadComments(postId) {
+      const section = document.getElementById('commentsSection');
+      section.innerHTML = `<div class="comments-section">
+        <h2 class="section-title" style="margin-bottom:24px">Comments</h2>
+        <div class="comment-form">
+          <h3 style="font-family:var(--font-head);font-size:1.1rem;margin-bottom:18px">Leave a Comment</h3>
+          <div class="form-row"><div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="cName" placeholder="Your name" required /></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="cEmail" type="email" placeholder="your@email.com" /></div></div>
+          <div class="form-group"><label class="form-label">Comment *</label><textarea class="form-textarea" id="cContent" placeholder="Share your thoughts…" style="min-height:100px"></textarea></div>
+          <button class="btn btn-primary" onclick="submitComment()">Post Comment</button>
+        </div>
+        <div id="commentsList"></div>
+      </div>`;
+      try {
+        const comments = await apiFetch(`/comments/post/${postId}`);
+        const list = document.getElementById('commentsList');
+        if (!comments.length) { list.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem">No comments yet. Be the first!</p>'; return; }
+        list.innerHTML = `<div class="comment-list">${comments.map(c=>`
+          <div class="comment-item">
+            <div class="comment-header">
+              <div class="comment-avatar">${c.name[0].toUpperCase()}</div>
+              <div><div class="comment-name">${c.name}</div><div class="comment-date">${formatDate(c.createdAt, true)}</div></div>
+            </div>
+            <div class="comment-body">${c.content}</div>
+            ${c.aiReply && c.replyStatus === 'sent' ? `<div class="comment-reply"><div class="comment-reply-label">World Mic replied</div><p>${c.aiReply}</p></div>` : ''}
+          </div>`).join('')}</div>`;
+      } catch {}
+    }
+
+    async function submitComment() {
+      const name = document.getElementById('cName').value.trim();
+      const email = document.getElementById('cEmail').value.trim();
+      const content = document.getElementById('cContent').value.trim();
+      if (!name || !content) { showToast('Name and comment are required', 'error'); return; }
+      try {
+        await apiFetch('/comments', { method: 'POST', body: JSON.stringify({ postId, name, email, content }) });
+        showToast('Comment submitted! It will appear after review.', 'success');
+        document.getElementById('cName').value = '';
+        document.getElementById('cEmail').value = '';
+        document.getElementById('cContent').value = '';
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function loadRelated(category, excludeId) {
+      try {
+        const data = await apiFetch(`/posts?category=${encodeURIComponent(category)}&limit=5`);
+        const related = data.posts.filter(p => p._id !== excludeId).slice(0, 4);
+        if (!related.length) return;
+        document.getElementById('relatedWidget').style.display = '';
+        document.getElementById('relatedPosts').innerHTML = related.map((p,i)=>
+          `<li class="trending-item"><div class="trending-num">${String(i+1).padStart(2,'0')}</div><div><div class="card-category" style="margin:0 0 3px">${p.category}</div><a class="trending-title" href="/post.html?id=${p._id}">${p.title}</a></div></li>`
+        ).join('');
+      } catch {}
+    }
+
+    async function loadCategories() {
+      try {
+        const cats = await apiFetch('/posts/meta/categories');
+        document.getElementById('categoriesList').innerHTML = cats.map(c=>
+          `<li class="trending-item"><div class="trending-title"><a href="/category.html?name=${encodeURIComponent(c)}">${c}</a></div></li>`
+        ).join('');
+      } catch {}
+    }
+
+    function sharePost(platform) {
+      const url = encodeURIComponent(location.href);
+      const title = encodeURIComponent(document.title);
+      if (platform === 'twitter') window.open(`https://twitter.com/intent/tweet?url=${url}&text=${title}`, '_blank');
+      else if (platform === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+      else { navigator.clipboard.writeText(location.href); showToast('Link copied!', 'success'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { loadPost(); loadCategories(); });
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

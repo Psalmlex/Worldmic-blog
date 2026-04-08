@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Post — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title" id="pageTitle">Create Post</div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary btn-sm" onclick="publishPost()">Publish →</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:24px">
+        <!-- Main Editor -->
+        <div>
+          <div class="form-card">
+            <div class="form-group">
+              <input class="form-input" id="postTitle" placeholder="Post Title…" style="font-size:1.2rem;font-weight:600;font-family:inherit" />
+            </div>
+            <div class="form-group">
+              <div class="editor-toolbar">
+                <button onclick="fmt('bold')"><b>B</b></button>
+                <button onclick="fmt('italic')"><i>I</i></button>
+                <button onclick="fmt('underline')"><u>U</u></button>
+                <div class="divider"></div>
+                <button onclick="insertTag('h2')">H2</button>
+                <button onclick="insertTag('h3')">H3</button>
+                <div class="divider"></div>
+                <button onclick="fmt('insertUnorderedList')">• List</button>
+                <button onclick="fmt('insertOrderedList')"># List</button>
+                <div class="divider"></div>
+                <button onclick="insertBlockquote()">❝ Quote</button>
+                <button onclick="insertLink()">🔗 Link</button>
+              </div>
+              <div id="postContent" class="form-input" contenteditable="true" style="min-height:400px;padding:16px;border-radius:0 0 7px 7px;line-height:1.8;outline:none" data-placeholder="Start writing your post here…"></div>
+            </div>
+          </div>
+
+          <!-- AI Write Assist -->
+          <div class="form-card" style="margin-top:16px">
+            <div class="form-card-title">🤖 AI Writing Assistant</div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">AI Topic / Prompt</label>
+                <input class="form-input" id="aiTopic" placeholder="e.g. Climate change in Africa" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Writing Tone</label>
+                <input class="form-input" id="aiTone" placeholder="e.g. Professional and engaging" />
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="aiGeneratePost()" id="aiGenBtn">✨ Generate Full Post</button>
+              <button class="btn btn-ghost btn-sm" onclick="aiImprovePost()">🔄 Improve Current Post</button>
+              <button class="btn btn-ghost btn-sm" onclick="aiGenImage()">🖼️ Generate Featured Image</button>
+            </div>
+            <div id="aiProgress" style="display:none;margin-top:12px;padding:10px 14px;background:#f0f4ff;border-radius:7px;font-size:0.85rem;color:#1a5eb8">
+              <div class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;margin-right:8px;vertical-align:middle"></div>
+              AI is working…
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar Options -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="form-card">
+            <div class="form-card-title">Post Settings</div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" id="postStatus">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <input class="form-input" id="postCategory" placeholder="e.g. Technology" list="catSuggestions" />
+              <datalist id="catSuggestions">
+                <option value="Technology"><option value="Health"><option value="Business">
+                <option value="Culture"><option value="Politics"><option value="Sports">
+                <option value="Entertainment"><option value="Science"><option value="Africa">
+                <option value="Lifestyle"><option value="Education"><option value="General">
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tags (comma-separated)</label>
+              <input class="form-input" id="postTags" placeholder="news, africa, tech" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Author</label>
+              <input class="form-input" id="postAuthor" value="World Mic" />
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-title">Featured Image</div>
+            <div class="form-group">
+              <label class="form-label">Image URL</label>
+              <input class="form-input" id="postImage" placeholder="https://…" oninput="previewImage()" />
+            </div>
+            <div id="imagePreview" style="display:none;margin-top:10px">
+              <img id="previewImg" src="" alt="Preview" style="width:100%;border-radius:7px;aspect-ratio:16/9;object-fit:cover" />
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-title">SEO</div>
+            <div class="form-group">
+              <label class="form-label">SEO Title</label>
+              <input class="form-input" id="seoTitle" placeholder="SEO optimized title" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Meta Description</label>
+              <textarea class="form-input" id="seoDesc" placeholder="Brief description for search engines…" style="min-height:80px;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Excerpt</label>
+              <textarea class="form-input" id="postExcerpt" placeholder="Short excerpt (auto-generated if blank)" style="min-height:80px;resize:vertical"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  const postId = new URLSearchParams(location.search).get('id');
+  let isEditing = !!postId;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-create.html');
+    if (isEditing) {
+      document.getElementById('pageTitle').textContent = 'Edit Post';
+      document.title = 'Edit Post — World Mic Admin';
+      loadPost();
+    }
+    // Placeholder support for contenteditable
+    const editor = document.getElementById('postContent');
+    editor.addEventListener('focus', () => editor.classList.add('focused'));
+    editor.addEventListener('blur', () => editor.classList.remove('focused'));
+  });
+
+  async function loadPost() {
+    try {
+      const res = await fetch(`/api/posts/${postId}`);
+      const post = await res.json();
+      if (post.error) { const all = await adminFetch(`/posts/admin/all`); const p = all.find(x=>x._id===postId); if(p) fillForm(p); return; }
+      fillForm(post);
+    } catch (err) { showToast('Failed to load post', 'error'); }
+  }
+
+  function fillForm(post) {
+    document.getElementById('postTitle').value = post.title || '';
+    document.getElementById('postContent').innerHTML = post.content || '';
+    document.getElementById('postStatus').value = post.status || 'draft';
+    document.getElementById('postCategory').value = post.category || '';
+    document.getElementById('postTags').value = (post.tags || []).join(', ');
+    document.getElementById('postAuthor').value = post.author || 'World Mic';
+    document.getElementById('postImage').value = post.featuredImage || '';
+    document.getElementById('seoTitle').value = post.seoTitle || '';
+    document.getElementById('seoDesc').value = post.seoDescription || '';
+    document.getElementById('postExcerpt').value = post.excerpt || '';
+    previewImage();
+  }
+
+  function getFormData(status) {
+    const content = document.getElementById('postContent').innerHTML;
+    return {
+      title: document.getElementById('postTitle').value.trim(),
+      content,
+      status: status || document.getElementById('postStatus').value,
+      category: document.getElementById('postCategory').value.trim() || 'General',
+      tags: document.getElementById('postTags').value.split(',').map(t=>t.trim()).filter(Boolean),
+      author: document.getElementById('postAuthor').value.trim() || 'World Mic',
+      featuredImage: document.getElementById('postImage').value.trim(),
+      seoTitle: document.getElementById('seoTitle').value.trim(),
+      seoDescription: document.getElementById('seoDesc').value.trim(),
+      excerpt: document.getElementById('postExcerpt').value.trim(),
+    };
+  }
+
+  async function savePost(status) {
+    const data = getFormData(status);
+    if (!data.title) { showToast('Please add a title', 'error'); return; }
+    if (!data.content || data.content === '') { showToast('Please add content', 'error'); return; }
+    try {
+      if (isEditing) {
+        await adminFetch(`/posts/${postId}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast('Post updated!', 'success');
+      } else {
+        const created = await adminFetch('/posts', { method: 'POST', body: JSON.stringify(data) });
+        showToast('Post created!', 'success');
+        window.history.replaceState({}, '', `/admin-create.html?id=${created._id}`);
+        isEditing = true;
+      }
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function saveDraft() { savePost('draft'); }
+  function publishPost() { savePost('published'); }
+
+  function fmt(cmd) { document.execCommand(cmd, false, null); document.getElementById('postContent').focus(); }
+  function insertTag(tag) {
+    const sel = window.getSelection();
+    const text = sel.toString() || 'Heading';
+    document.execCommand('insertHTML', false, `<${tag}>${text}</${tag}><p></p>`);
+  }
+  function insertBlockquote() { document.execCommand('insertHTML', false, '<blockquote>Quote text here</blockquote><p></p>'); }
+  function insertLink() {
+    const url = prompt('Enter URL:');
+    if (url) document.execCommand('createLink', false, url);
+  }
+
+  function previewImage() {
+    const url = document.getElementById('postImage').value.trim();
+    const preview = document.getElementById('imagePreview');
+    if (url) { document.getElementById('previewImg').src = url; preview.style.display = ''; }
+    else preview.style.display = 'none';
+  }
+
+  async function aiGeneratePost() {
+    const topic = document.getElementById('aiTopic').value.trim();
+    const tone = document.getElementById('aiTone').value.trim();
+    const category = document.getElementById('postCategory').value.trim();
+    if (!topic) { showToast('Enter a topic first', 'error'); return; }
+    const btn = document.getElementById('aiGenBtn');
+    btn.disabled = true;
+    document.getElementById('aiProgress').style.display = '';
+    try {
+      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category }) });
+      const post = data.postData;
+      document.getElementById('postTitle').value = post.title || '';
+      document.getElementById('postContent').innerHTML = post.content || '';
+      document.getElementById('postExcerpt').value = post.excerpt || '';
+      document.getElementById('seoTitle').value = post.seoTitle || '';
+      document.getElementById('seoDesc').value = post.seoDescription || '';
+      if (post.tags) document.getElementById('postTags').value = post.tags.join(', ');
+      showToast('Post generated! Review before publishing.', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { btn.disabled = false; document.getElementById('aiProgress').style.display = 'none'; }
+  }
+
+  async function aiImprovePost() {
+    if (!isEditing) { showToast('Save the post first, then use improve.', 'info'); return; }
+    document.getElementById('aiProgress').style.display = '';
+    try {
+      const data = await adminFetch('/ai/reedit-post', { method: 'POST', body: JSON.stringify({ postId, instructions: 'Improve SEO, readability and structure' }) });
+      const improved = data.improved;
+      document.getElementById('postTitle').value = improved.title || document.getElementById('postTitle').value;
+      document.getElementById('postContent').innerHTML = improved.content || '';
+      if (improved.excerpt) document.getElementById('postExcerpt').value = improved.excerpt;
+      showToast('Post improved by AI! Review changes.', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { document.getElementById('aiProgress').style.display = 'none'; }
+  }
+
+  async function aiGenImage() {
+    const title = document.getElementById('postTitle').value.trim();
+    const topic = document.getElementById('aiTopic').value.trim() || title;
+    if (!topic) { showToast('Enter a title or topic first', 'error'); return; }
+    document.getElementById('aiProgress').style.display = '';
+    try {
+      const data = await adminFetch('/ai/generate-image', { method: 'POST', body: JSON.stringify({ prompt: topic, postId: isEditing ? postId : undefined }) });
+      if (data.imageUrl) {
+        document.getElementById('postImage').value = data.imageUrl;
+        previewImage();
+        showToast('Image generated!', 'success');
+      }
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { document.getElementById('aiProgress').style.display = 'none'; }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>
