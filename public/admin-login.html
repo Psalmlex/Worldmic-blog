@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:linear-gradient(135deg,#0f3d7a 0%,#1a5eb8 50%,#4a90d9 100%); padding:20px; }
+    .login-card { background:#fff; border-radius:16px; padding:44px 40px; width:100%; max-width:420px; box-shadow:0 24px 64px rgba(0,0,0,0.2); }
+    .login-logo { display:flex; align-items:center; gap:12px; margin-bottom:32px; justify-content:center; }
+    .login-logo .logo-icon { width:52px; height:52px; background:linear-gradient(135deg,#1a5eb8,#0f3d7a); border-radius:14px; display:flex; align-items:center; justify-content:center; }
+    .login-logo .logo-icon svg { width:28px; height:28px; fill:#fff; }
+    .login-logo .logo-text { font-family:'Playfair Display',Georgia,serif; font-size:1.8rem; font-weight:700; color:#1a1a2e; }
+    .login-logo .logo-text span { color:#1a5eb8; }
+    .login-title { text-align:center; margin-bottom:28px; }
+    .login-title h1 { font-family:'Playfair Display',serif; font-size:1.4rem; color:#1a1a2e; margin-bottom:6px; }
+    .login-title p { color:#7a7a8a; font-size:0.875rem; }
+    .error-msg { background:#fee2e2; color:#e63a2e; border-radius:8px; padding:10px 14px; font-size:0.875rem; margin-bottom:16px; display:none; }
+    .form-group { margin-bottom:16px; }
+    .form-label { display:block; font-size:0.8rem; font-weight:700; color:#1a1a2e; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em; }
+    .form-input { width:100%; border:1.5px solid #e0e4ef; border-radius:8px; padding:12px 14px; font-size:0.95rem; outline:none; transition:border-color 0.2s; font-family:inherit; }
+    .form-input:focus { border-color:#1a5eb8; }
+    .btn-login { width:100%; padding:13px; background:linear-gradient(135deg,#1a5eb8,#0f3d7a); color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit; margin-top:6px; }
+    .btn-login:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(26,94,184,0.35); }
+    .btn-login:disabled { opacity:0.7; cursor:not-allowed; transform:none; }
+    .demo-hint { margin-top:20px; padding:12px; background:#f0f4ff; border-radius:8px; font-size:0.78rem; color:#555; text-align:center; }
+    .demo-hint strong { color:#1a5eb8; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div>
+      <div class="logo-text">World<span>Mic</span></div>
+    </div>
+    <div class="login-title">
+      <h1>Admin Panel</h1>
+      <p>Sign in to manage your blog</p>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="username" placeholder="Enter username" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="password" placeholder="Enter password" autocomplete="current-password" />
+    </div>
+    <button class="btn-login" id="loginBtn" onclick="login()">Sign In →</button>
+    <div class="demo-hint">
+      Demo: <strong>admin</strong> / <strong>WorldMic2025!</strong><br>
+      <small style="color:#9a9aaa;margin-top:4px;display:block">Change in .env before going live</small>
+    </div>
+  </div>
+
+  <script>
+    // Redirect if already logged in
+    if (localStorage.getItem('wm_token')) location.href = '/admin-dashboard.html';
+
+    document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+    document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+    async function login() {
+      const btn = document.getElementById('loginBtn');
+      const err = document.getElementById('errorMsg');
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      if (!username || !password) { showError('Please enter username and password'); return; }
+      btn.disabled = true; btn.textContent = 'Signing in…';
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Login failed'); return; }
+        localStorage.setItem('wm_token', data.token);
+        localStorage.setItem('wm_admin', username);
+        location.href = '/admin-dashboard.html';
+      } catch { showError('Connection error. Is the server running?'); }
+      finally { btn.disabled = false; btn.textContent = 'Sign In →'; }
+    }
+
+    function showError(msg) {
+      const err = document.getElementById('errorMsg');
+      err.textContent = msg; err.style.display = 'block';
+    }
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

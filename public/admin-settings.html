@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Site Settings</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" onclick="saveAllSettings()">💾 Save All Settings</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <!-- General -->
+        <div class="form-card">
+          <div class="form-card-title">🌍 General</div>
+          <div class="form-group"><label class="form-label">Site Name</label><input class="form-input" id="siteName" placeholder="World Mic" /></div>
+          <div class="form-group"><label class="form-label">Tagline</label><input class="form-input" id="tagline" placeholder="Voices from Every Corner" /></div>
+          <div class="form-group"><label class="form-label">Primary Color</label><div style="display:flex;gap:10px;align-items:center"><input type="color" id="primaryColor" style="width:48px;height:38px;border:1px solid var(--border);border-radius:7px;cursor:pointer" /><input class="form-input" id="primaryColorHex" placeholder="#1a5eb8" style="flex:1" /></div></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="form-card">
+          <div class="form-card-title">📋 Footer</div>
+          <div class="form-group"><label class="form-label">Contact Number</label><input class="form-input" id="footerContact" placeholder="+1 555 000 0000" /></div>
+          <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="footerAddress" placeholder="123 Street, City, Country" /></div>
+          <div class="form-group"><label class="form-label">About Text</label><textarea class="form-input" id="footerAbout" style="min-height:90px;resize:vertical" placeholder="Short description of your blog…"></textarea></div>
+        </div>
+
+        <!-- Social -->
+        <div class="form-card">
+          <div class="form-card-title">📱 Social Links</div>
+          <div class="form-group"><label class="form-label">Twitter / X</label><input class="form-input" id="socialTwitter" placeholder="https://twitter.com/worldmic" /></div>
+          <div class="form-group"><label class="form-label">Instagram</label><input class="form-input" id="socialInstagram" placeholder="https://instagram.com/worldmic" /></div>
+          <div class="form-group"><label class="form-label">Facebook</label><input class="form-input" id="socialFacebook" placeholder="https://facebook.com/worldmic" /></div>
+        </div>
+
+        <!-- AI Tone -->
+        <div class="form-card">
+          <div class="form-card-title">🤖 AI Writing Tone</div>
+          <div class="form-group">
+            <label class="form-label">Personal Writing Style</label>
+            <textarea class="form-input" id="adminTone" style="min-height:120px;resize:vertical" placeholder="Describe your writing tone, e.g. 'I write in a professional yet conversational tone, using simple language that everyone can understand. I like to start with a hook, use subheadings, and end with a call to action.'"></textarea>
+            <div class="form-hint">AI uses this tone when generating posts on your behalf.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sample Post Excerpt (for tone training)</label>
+            <textarea class="form-input" id="toneSample" style="min-height:100px;resize:vertical" placeholder="Paste a sample of your own writing here so AI can learn your style…"></textarea>
+          </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">🔍 SEO & Meta</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group"><label class="form-label">Default Meta Description</label><textarea class="form-input" id="metaDescription" style="min-height:80px;resize:vertical" placeholder="Default description for homepage and category pages…"></textarea></div>
+            <div class="form-group"><label class="form-label">Google Analytics ID</label><input class="form-input" id="gaId" placeholder="G-XXXXXXXXXX" /><div class="form-hint">Optional. Add your GA4 measurement ID.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;padding:18px;background:#f0f4ff;border-radius:10px;border:1px solid #c7d7f7">
+        <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px">🔑 Credentials (change in .env file)</div>
+        <div style="font-size:0.875rem;color:#555;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><strong>Admin Username:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_USERNAME</code></div>
+          <div><strong>Admin Password:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_PASSWORD</code></div>
+          <div><strong>Anthropic API Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ANTHROPIC_API_KEY</code></div>
+          <div><strong>Image Gen Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → IMAGE_API_KEY</code></div>
+          <div><strong>MongoDB URI:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → MONGO_URI</code></div>
+          <div><strong>JWT Secret:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → JWT_SECRET</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-settings.html');
+    loadSettings();
+  });
+
+  async function loadSettings() {
+    try {
+      const s = await adminFetch('/settings');
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor'];
+      fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
+      if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
+      document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
+      document.getElementById('primaryColorHex').addEventListener('input', e => { document.getElementById('primaryColor').value = e.target.value; });
+    } catch (err) { showToast('Failed to load settings: ' + err.message, 'error'); }
+  }
+
+  async function saveAllSettings() {
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId'];
+    const updates = {};
+    fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
+    updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;
+    try {
+      await adminFetch('/settings', { method: 'PUT', body: JSON.stringify(updates) });
+      showToast('Settings saved!', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>
