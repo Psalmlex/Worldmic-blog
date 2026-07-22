@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
   res.json({ token, message: 'Login successful' });
 });
 
-router.post('/verify', (req, res) => {
+router.get('/verify', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ valid: false });
   try {
