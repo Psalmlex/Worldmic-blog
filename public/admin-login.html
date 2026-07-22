@@ -57,8 +57,32 @@
 
   <script>
     // Redirect if already logged in
-    if (localStorage.getItem('wm_token')) location.href = '/admin-dashboard.html';
+    // Redirect only if the stored token is valid
+const token = localStorage.getItem('wm_token');
 
+if (token) {
+  fetch('/api/auth/verify', {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error();
+
+      const data = await res.json();
+
+      if (data.valid) {
+        location.href = '/admin-dashboard.html';
+      } else {
+        localStorage.removeItem('wm_token');
+        localStorage.removeItem('wm_admin');
+      }
+    })
+    .catch(() => {
+      localStorage.removeItem('wm_token');
+      localStorage.removeItem('wm_admin');
+    });
+    }
     document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
     document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 
