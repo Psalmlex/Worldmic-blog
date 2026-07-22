@@ -11,7 +11,9 @@ async function requireAuth() {
   try {
     const res = await fetch('/api/auth/verify', { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
-    if (!data.valid) { localStorage.removeItem('wm_token'); location.href = '/admin-login.html'; return false; }
+    if (!data.valid) { localStorage.removeItem('wm_token');
+localStorage.removeItem('wm_admin');
+location.href = '/admin-login.html'; return false; }
     return true;
   } catch { location.href = '/admin-login.html'; return false; }
 }
