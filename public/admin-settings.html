@@ -58,6 +58,16 @@
           </div>
         </div>
 
+        <!-- AI Image Generation -->
+        <div class="form-card">
+          <div class="form-card-title">🎨 AI Image Generation</div>
+          <div class="form-group">
+            <label class="form-label">Stability AI API Key</label>
+            <input class="form-input" id="imageApiKey" type="password" placeholder="sk-..." autocomplete="off" />
+            <div class="form-hint">Used by Mica's "Generate Featured Image" action. Get a free key at <a href="https://platform.stability.ai/account/keys" target="_blank" rel="noopener">platform.stability.ai</a>. Leave blank to disable image generation.</div>
+          </div>
+        </div>
+
         <!-- SEO -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">🔍 SEO & Meta</div>
@@ -73,8 +83,8 @@
         <div style="font-size:0.875rem;color:#555;display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><strong>Admin Username:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_USERNAME</code></div>
           <div><strong>Admin Password:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_PASSWORD</code></div>
-          <div><strong>Anthropic API Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ANTHROPIC_API_KEY</code></div>
-          <div><strong>Image Gen Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → IMAGE_API_KEY</code></div>
+          <div><strong>Groq API Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → GROQ_API_KEY</code></div>
+          <div><strong>Image Gen Key:</strong> Set above in AI Image Generation ↑</div>
           <div><strong>MongoDB URI:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → MONGO_URI</code></div>
           <div><strong>JWT Secret:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → JWT_SECRET</code></div>
         </div>
@@ -95,7 +105,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
       document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
@@ -104,7 +114,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;

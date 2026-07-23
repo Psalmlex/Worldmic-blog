@@ -27,6 +27,40 @@ async function callGroq(systemPrompt, userMessage, maxTokens = 1500) {
   }
 }
 
+// ─── Core Groq API call (multi-turn, for the chat widget) ─────────────────────
+async function callGroqChat(messages, maxTokens = 1000) {
+  try {
+    const response = await axios.post(GROQ_URL, {
+      model: GROQ_MODEL,
+      max_tokens: maxTokens,
+      messages,
+    }, {
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type':  'application/json',
+      },
+    });
+    return response.data.choices[0].message.content;
+  } catch (err) {
+    console.error('Groq API error:', err.response?.data || err.message);
+    throw new Error('AI service error: ' + (err.response?.data?.error?.message || err.message));
+  }
+}
+
+// ─── Chat with the admin assistant (Mica) ──────────────────────────────────────
+async function chatWithAdmin(message, history = []) {
+  const system = `You are Mica, the AI assistant for World Mic blog platform. You help the admin manage the blog, create content, and answer questions. Be concise, helpful, and professional. When the admin asks you to do something actionable (create post, edit, etc.), respond with the action and a confirmation request. Current date: ${new Date().toLocaleDateString()}.`;
+  const messages = [
+    { role: 'system', content: system },
+    ...history
+      .filter(h => h && h.role && h.content)
+      .map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content })),
+    { role: 'user', content: message },
+  ];
+  const reply = await callGroqChat(messages);
+  return reply.trim();
+}
+
 // ─── Generate blog post content ───────────────────────────────────────────────
 async function generatePost(topic, tone = '', category = 'General') {
   const toneInstruction = tone
@@ -102,9 +136,53 @@ Return ONLY the raw JSON — no markdown fences, no preamble.`;
   }
 }
 
-// ─── Image generation (placeholder — wire in Stability/Replicate if needed) ──
+// ─── Image generation (Stability AI, key set by admin in Settings page) ──────
 async function generateImage(prompt) {
-  return { url: '', error: 'Image generation not configured. Add a Stability AI or Replicate key to .env to enable this.' };
+  if (!prompt || !prompt.trim()) return { error: 'Please provide a description for the image.' };
+  try {
+    const { Settings } = require('../models/Models');
+    const setting = await Settings.findOne({ key: 'imageApiKey' });
+    const apiKey = setting?.value;
+    if (!apiKey) {
+      return { error: 'No image generation API key set. Add your Stability AI key in Admin → Settings → AI Image Generation.' };
+    }
+
+    const response = await axios.post(
+      'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
+      {
+        text_prompts: [{ text: prompt }],
+        cfg_scale: 7,
+        height: 1024,
+        width: 1024,
+        samples: 1,
+        steps: 30,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    const base64 = response.data?.artifacts?.[0]?.base64;
+    if (!base64) return { error: 'Image generation returned no image. Try a different prompt.' };
+
+    // Upload the generated image to Cloudinary so it has a permanent URL
+    const { cloudinary } = require('../../config/cloudinary');
+    const upload = await cloudinary.uploader.upload(`data:image/png;base64,${base64}`, {
+      folder: 'worldmic/ai-generated',
+    });
+    return { url: upload.secure_url };
+  } catch (err) {
+    const msg = err.response?.data?.message || err.response?.data?.errors?.[0] || err.message;
+    console.error('Image generation error:', msg);
+    if (err.response?.status === 401) {
+      return { error: 'Invalid image generation API key. Check it in Admin → Settings.' };
+    }
+    return { error: 'Image generation failed: ' + msg };
+  }
 }
 
-module.exports = { callGroq, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage };
+module.exports = { callGroq, callGroqChat, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage };
