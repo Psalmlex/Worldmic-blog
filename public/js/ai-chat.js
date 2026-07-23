@@ -7,6 +7,7 @@ class MicaAI {
     this.isOpen = false;
     this.activeTab = 'chat';
     this.chatHistory = [];
+    this.pendingAction = null; // when set, the next typed message is routed to a real endpoint, not plain chat
     this.init();
   }
 
@@ -44,10 +45,10 @@ class MicaAI {
 
       <div id="chatTabContent" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
         <div class="ai-quick-actions">
-          <button class="quick-btn" data-cmd="Write a new blog post about trending tech news">✏️ Write Post</button>
-          <button class="quick-btn" data-cmd="Reply to all pending comments">💬 Reply Comments</button>
-          <button class="quick-btn" data-cmd="Suggest 5 trending post topics for this week">🔥 Trending</button>
-          <button class="quick-btn" data-cmd="Generate a featured image for the latest post">🖼️ Gen Image</button>
+          <button class="quick-btn" data-action="generate-post">✏️ Write Post</button>
+          <button class="quick-btn" data-action="reply-comments">💬 Reply Comments</button>
+          <button class="quick-btn" data-action="trending">🔥 Trending</button>
+          <button class="quick-btn" data-action="generate-image">🖼️ Gen Image</button>
         </div>
         <div class="ai-messages" id="aiMessages"></div>
         <div class="ai-input-area">
@@ -88,13 +89,6 @@ class MicaAI {
     document.getElementById('aiSendBtn').addEventListener('click', () => this.sendMessage());
     document.getElementById('aiInput').addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendMessage(); }
-    });
-
-    document.querySelectorAll('.quick-btn[data-cmd]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.getElementById('aiInput').value = btn.dataset.cmd;
-        this.sendMessage();
-      });
     });
 
     document.querySelectorAll('.quick-btn[data-action]').forEach(btn => {
@@ -159,20 +153,36 @@ class MicaAI {
 
   removeTyping() { document.getElementById('typingIndicator')?.remove(); }
 
+  authHeaders(json = true) {
+    const token = localStorage.getItem('wm_token');
+    return json
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      : { Authorization: `Bearer ${token}` };
+  }
+
+  // Every typed message: if an action is pending (we're mid-flow on a real task), route it there.
+  // Otherwise it's a normal conversational message to Mica.
   async sendMessage() {
     const input = document.getElementById('aiInput');
     const message = input.value.trim();
     if (!message) return;
     input.value = '';
     this.appendMessage('user', message);
+
+    if (this.pendingAction) {
+      const action = this.pendingAction;
+      this.pendingAction = null;
+      return this.runPendingAction(action, message);
+    }
+    return this.plainChat(message);
+  }
+
+  async plainChat(message) {
     this.showTyping();
     document.getElementById('aiSendBtn').disabled = true;
-
     try {
-      const token = localStorage.getItem('wm_token');
       const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method: 'POST', headers: this.authHeaders(),
         body: JSON.stringify({ message, history: this.chatHistory.slice(-10) })
       });
       const data = await res.json();
@@ -188,30 +198,127 @@ class MicaAI {
     }
   }
 
+  async runPendingAction(action, userInput) {
+    if (action === 'generate-post') return this.doGeneratePost(userInput);
+    if (action === 'reedit-post') return this.doReeditPost(userInput);
+    if (action === 'generate-image') return this.doGenerateImage(userInput);
+    if (action === 'reply-comments') return this.doReplyComments(userInput);
+    return this.plainChat(userInput); // fallback safety net
+  }
+
+  async doGeneratePost(topic) {
+    this.showTyping();
+    try {
+      const res = await fetch('/api/ai/generate-post', {
+        method: 'POST', headers: this.authHeaders(),
+        body: JSON.stringify({ topic, category: 'General' })
+      });
+      const data = await res.json();
+      this.removeTyping();
+      if (data.error) { this.appendMessage('ai', `❌ ${data.error}`); return; }
+      const p = data.postData;
+      // Save it as a real draft immediately so the task is actually complete, not just previewed
+      const createRes = await fetch('/api/posts', {
+        method: 'POST', headers: this.authHeaders(),
+        body: JSON.stringify({ ...p, status: 'draft', aiGenerated: true })
+      });
+      const created = await createRes.json();
+      if (!createRes.ok) { this.appendMessage('ai', `✅ Post written, but saving as a draft failed: ${created.error || 'unknown error'}<br><br><strong>${p.title}</strong><br>${p.excerpt}`); return; }
+      this.appendMessage('ai', `✅ Draft created: <strong>${p.title}</strong><br><br>${p.excerpt}<br><br><a href="/admin-create.html?id=${created._id}" style="color:#2563eb;font-weight:600">Open to review & publish →</a>`);
+    } catch (err) {
+      this.removeTyping();
+      this.appendMessage('ai', '❌ Connection error while generating the post.');
+    }
+  }
+
+  async doReeditPost(input) {
+    const [postId, ...rest] = input.split(':');
+    const instructions = rest.join(':').trim();
+    this.showTyping();
+    try {
+      const res = await fetch('/api/ai/reedit-post', {
+        method: 'POST', headers: this.authHeaders(),
+        body: JSON.stringify({ postId: postId.trim(), instructions })
+      });
+      const data = await res.json();
+      this.removeTyping();
+      if (data.error) { this.appendMessage('ai', `❌ ${data.error}`); return; }
+      const p = data.improved;
+      this.appendMessage('ai', `✅ Improved draft ready for <strong>${p.title}</strong>:<br><br>${p.excerpt || ''}<br><br><a href="/admin-create.html?id=${postId.trim()}" style="color:#2563eb;font-weight:600">Open to review & save →</a><br><small style="opacity:0.7">Note: this preview isn't saved yet — open the editor to apply the changes.</small>`);
+    } catch (err) {
+      this.removeTyping();
+      this.appendMessage('ai', '❌ Connection error while re-editing the post.');
+    }
+  }
+
+  async doGenerateImage(description) {
+    this.showTyping();
+    try {
+      const res = await fetch('/api/ai/generate-image', {
+        method: 'POST', headers: this.authHeaders(),
+        body: JSON.stringify({ prompt: description })
+      });
+      const data = await res.json();
+      this.removeTyping();
+      if (data.error) { this.appendMessage('ai', `❌ ${data.error}`); return; }
+      this.appendMessage('ai', `✅ Here's your image:<br><br><img src="${data.imageUrl}" style="max-width:100%;border-radius:10px;margin:6px 0" /><br><a href="${data.imageUrl}" target="_blank" style="color:#2563eb;font-weight:600">Open full size →</a><br><small style="opacity:0.7">Copy this URL into a post's featured image field to use it.</small>`);
+    } catch (err) {
+      this.removeTyping();
+      this.appendMessage('ai', '❌ Connection error while generating the image.');
+    }
+  }
+
+  async doReplyComments(confirmText) {
+    if (!/^(go ahead|yes|confirm|do it|ok|okay|sure)/i.test(confirmText.trim())) {
+      this.appendMessage('ai', `No problem — say "go ahead" whenever you're ready, or tell me specific tone instructions first.`);
+      this.pendingAction = 'reply-comments'; // stay in this flow until confirmed
+      return;
+    }
+    this.showTyping();
+    try {
+      const res = await fetch('/api/ai/reply-comments', { method: 'POST', headers: this.authHeaders(), body: JSON.stringify({}) });
+      const data = await res.json();
+      this.removeTyping();
+      if (data.error) { this.appendMessage('ai', `❌ ${data.error}`); return; }
+      if (!data.count) { this.appendMessage('ai', `There's nothing to reply to right now — no approved comments are waiting.`); return; }
+      const list = data.replies.map(r => `<strong>${r.name}</strong>: ${r.reply}`).join('<br><br>');
+      this.appendMessage('ai', `✅ Generated ${data.count} repl${data.count === 1 ? 'y' : 'ies'} (saved as pending — review and send from <a href="/admin-comments.html" style="color:#2563eb;font-weight:600">Comments</a>):<br><br>${list}`);
+    } catch (err) {
+      this.removeTyping();
+      this.appendMessage('ai', '❌ Connection error while generating replies.');
+    }
+  }
+
   async handleAction(action) {
     this.switchTab('chat');
+    if (action === 'trending') {
+      this.appendMessage('ai', `Let me pull some trending topic ideas for your blog…`);
+      this.showTyping();
+      try {
+        const res = await fetch('/api/ai/trending', { headers: this.authHeaders(false) });
+        const data = await res.json();
+        this.removeTyping();
+        if (data.error) { this.appendMessage('ai', `❌ ${data.error}`); return; }
+        if (data.suggestions?.length) {
+          const list = data.suggestions.map((s, i) => `<strong>${i+1}. ${s.topic}</strong> (${s.category})<br><small>${s.reason}</small>`).join('<br><br>');
+          this.appendMessage('ai', `🔥 Here are your trending suggestions:<br><br>${list}`);
+        } else {
+          this.appendMessage('ai', `Couldn't generate suggestions right now — try again in a moment.`);
+        }
+      } catch { this.removeTyping(); this.appendMessage('ai', '❌ Could not fetch suggestions.'); }
+      return;
+    }
+
     const prompts = {
-      'generate-post': 'I want to generate a new blog post. What topic would you like to write about? (I\'ll use your saved tone settings)',
-      'reedit-post': 'Please enter the Post ID you want to re-edit, and any specific improvement instructions.',
-      'generate-image': 'Describe the image you want to generate for your post. I\'ll create a professional featured image.',
-      'reply-comments': 'I\'ll auto-generate replies for all approved comments. Say "go ahead" to confirm, or give me special instructions for the tone.',
-      'trending': 'Let me analyze current trends and suggest 5 hot topics for your blog right now!'
+      'generate-post': 'What topic would you like the post to be about? Just type it below.',
+      'reedit-post': 'Enter the Post ID, optionally followed by instructions — e.g. "64f2a1c9 : make it more concise".',
+      'generate-image': 'Describe the image you want. I\'ll generate it and give you a URL to use.',
+      'reply-comments': 'I\'ll auto-generate replies for all approved comments awaiting a reply. Type "go ahead" to confirm.',
     };
     if (prompts[action]) {
       this.appendMessage('ai', prompts[action]);
-      if (action === 'trending') {
-        this.showTyping();
-        try {
-          const token = localStorage.getItem('wm_token');
-          const res = await fetch('/api/ai/trending', { headers: { Authorization: `Bearer ${token}` } });
-          const data = await res.json();
-          this.removeTyping();
-          if (data.suggestions?.length) {
-            const list = data.suggestions.map((s, i) => `<strong>${i+1}. ${s.topic}</strong> (${s.category})<br><small>${s.reason}</small>`).join('<br><br>');
-            this.appendMessage('ai', `🔥 Here are your trending suggestions:<br><br>${list}`);
-          }
-        } catch { this.removeTyping(); this.appendMessage('ai', '❌ Could not fetch suggestions.'); }
-      }
+      this.pendingAction = action;
+      document.getElementById('aiInput').focus();
     }
   }
 
@@ -219,8 +326,7 @@ class MicaAI {
     const list = document.getElementById('aiLogList');
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#9a9aaa;font-size:0.8rem;">Loading…</div>';
     try {
-      const token = localStorage.getItem('wm_token');
-      const res = await fetch('/api/ai/logs', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('/api/ai/logs', { headers: this.authHeaders(false) });
       const logs = await res.json();
       if (!logs.length) { list.innerHTML = '<div style="text-align:center;padding:20px;color:#9a9aaa;font-size:0.8rem;">No logs yet.</div>'; return; }
       list.innerHTML = logs.map(l => `

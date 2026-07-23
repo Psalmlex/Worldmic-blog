@@ -58,13 +58,47 @@
           </div>
         </div>
 
-        <!-- AI Image Generation -->
-        <div class="form-card">
-          <div class="form-card-title">🎨 AI Image Generation</div>
-          <div class="form-group">
-            <label class="form-label">Stability AI API Key</label>
-            <input class="form-input" id="imageApiKey" type="password" placeholder="sk-..." autocomplete="off" />
-            <div class="form-hint">Used by Mica's "Generate Featured Image" action. Get a free key at <a href="https://platform.stability.ai/account/keys" target="_blank" rel="noopener">platform.stability.ai</a>. Leave blank to disable image generation.</div>
+        <!-- AI Configuration -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">🤖 AI Configuration</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div>
+              <div style="font-weight:700;font-size:0.85rem;color:#1a1a2e;margin-bottom:10px">Blog Writing & Mica Chat</div>
+              <div class="form-group">
+                <label class="form-label">Provider</label>
+                <select class="form-input" id="textAiProvider">
+                  <option value="groq">Groq (default — free, fast)</option>
+                  <option value="openai">OpenAI (GPT)</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openrouter">OpenRouter (any model)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input class="form-input" id="textAiKey" type="password" placeholder="Leave blank to use .env GROQ_API_KEY" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Model <span style="font-weight:400;color:#9a9aaa">(optional override)</span></label>
+                <input class="form-input" id="textAiModel" type="text" placeholder="e.g. gpt-4o, claude-3-5-sonnet-20241022" />
+                <div class="form-hint">Leave blank to use a sensible default for the selected provider.</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:0.85rem;color:#1a1a2e;margin-bottom:10px">🎨 AI Image Generation</div>
+              <div class="form-group">
+                <label class="form-label">Provider</label>
+                <select class="form-input" id="imageApiProvider">
+                  <option value="stability">Stability AI</option>
+                  <option value="openai">OpenAI (DALL-E 3)</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input class="form-input" id="imageApiKey" type="password" placeholder="sk-..." autocomplete="off" />
+                <div class="form-hint">Used by Mica's "Generate Featured Image" action. Leave blank to disable image generation.</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -83,8 +117,8 @@
         <div style="font-size:0.875rem;color:#555;display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><strong>Admin Username:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_USERNAME</code></div>
           <div><strong>Admin Password:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → ADMIN_PASSWORD</code></div>
-          <div><strong>Groq API Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → GROQ_API_KEY</code></div>
-          <div><strong>Image Gen Key:</strong> Set above in AI Image Generation ↑</div>
+          <div><strong>Groq API Key:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → GROQ_API_KEY</code> (default/fallback), or override any provider above in AI Configuration ↑</div>
+          <div><strong>Image Gen Key:</strong> Set above in AI Configuration ↑</div>
           <div><strong>MongoDB URI:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → MONGO_URI</code></div>
           <div><strong>JWT Secret:</strong> Set in <code style="background:#fff;padding:2px 6px;border-radius:4px">.env → JWT_SECRET</code></div>
         </div>
@@ -105,7 +139,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
       document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
@@ -114,7 +148,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;
