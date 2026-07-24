@@ -58,6 +58,17 @@ const staffUserSchema = new mongoose.Schema({
   name: { type: String, default: '' },
 }, { timestamps: true });
 
+// Inquiry Model (Join the Team + Partner/Advertise submissions)
+const inquirySchema = new mongoose.Schema({
+  type: { type: String, enum: ['team', 'partner'], required: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  company: { type: String, default: '' },   // partner inquiries
+  roleInterest: { type: String, default: '' }, // team applications
+  message: { type: String, required: true },
+  status: { type: String, enum: ['new', 'reviewed'], default: 'new' },
+}, { timestamps: true });
+
 module.exports = {
   Comment: mongoose.model('Comment', commentSchema),
   Ad: mongoose.model('Ad', adSchema),
@@ -65,4 +76,5 @@ module.exports = {
   AILog: mongoose.model('AILog', aiLogSchema),
   Subscriber: mongoose.model('Subscriber', subscriberSchema),
   StaffUser: mongoose.model('StaffUser', staffUserSchema),
+  Inquiry: mongoose.model('Inquiry', inquirySchema),
 };

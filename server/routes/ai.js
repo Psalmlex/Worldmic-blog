@@ -53,14 +53,25 @@ router.post('/reedit-post', auth, async (req, res) => {
 
 // Generate featured image
 router.post('/generate-image', auth, async (req, res) => {
-  const { prompt, postId } = req.body;
+  const { prompt, postId, context } = req.body;
   try {
-    const result = await ai.generateImage(prompt);
+    let topic = prompt;
+    let contextText = context || '';
+    if (postId && !contextText) {
+      const existingPost = await Post.findById(postId);
+      if (existingPost) {
+        topic = topic || existingPost.title;
+        contextText = existingPost.excerpt || (existingPost.content || '').replace(/<[^>]+>/g, '').substring(0, 600);
+      }
+    }
+    if (!topic) return res.status(400).json({ error: 'No topic or prompt provided' });
+
+    const result = await ai.generateFeaturedImage(topic, contextText);
     if (result.error) return res.status(400).json({ error: result.error });
     if (postId && result.url) {
       await Post.findByIdAndUpdate(postId, { featuredImage: result.url });
     }
-    await log('generate_image', `Generate image: ${prompt}`, postId || 'standalone', result.url ? 'Image generated' : 'Failed');
+    await log('generate_image', `Generate image: ${topic}`, postId || 'standalone', result.url ? 'Image generated' : 'Failed');
     res.json({ imageUrl: result.url, message: 'Image generated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -115,24 +126,12 @@ router.get('/logs', auth, async (req, res) => {
 // Chat with AI (general assistant)
 router.post('/chat', auth, async (req, res) => {
   const { message, history = [] } = req.body;
+  if (!message) return res.status(400).json({ error: 'No message provided' });
   try {
-    const axios = require('axios');
-    const messages = [...history, { role: 'user', content: message }];
-    const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: `You are Mica, the AI assistant for World Mic blog platform. You help the admin manage the blog, create content, and answer questions. Be concise, helpful, and professional. When the admin asks you to do something actionable (create post, edit, etc.), respond with the action and a confirmation request. Current date: ${new Date().toLocaleDateString()}.`,
-      messages,
-    }, {
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      }
-    });
-    const reply = response.data.content[0].text;
+    const reply = await ai.chatWithAdmin(message, history);
     await log('chat', message, 'admin', reply.substring(0, 100));
-    res.json({ reply, messages: [...messages, { role: 'assistant', content: reply }] });
+    const messages = [...history, { role: 'user', content: message }, { role: 'assistant', content: reply }];
+    res.json({ reply, messages });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

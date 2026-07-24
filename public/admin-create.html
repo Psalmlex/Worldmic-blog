@@ -105,9 +105,14 @@
           <div class="form-card">
             <div class="form-card-title">Featured Image</div>
             <div class="form-group">
-              <label class="form-label">Image URL</label>
+              <label class="form-label">Upload from device</label>
+              <input type="file" id="postImageFile" accept="image/*" class="form-input" style="padding:8px" onchange="uploadFeaturedImage(this)" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Or paste Image URL</label>
               <input class="form-input" id="postImage" placeholder="https://…" oninput="previewImage()" />
             </div>
+            <div class="form-hint" style="margin-top:-6px;margin-bottom:10px">Or use "🖼️ Generate Featured Image" above to have AI create one.</div>
             <div id="imagePreview" style="display:none;margin-top:10px">
               <img id="previewImg" src="" alt="Preview" style="width:100%;border-radius:7px;aspect-ratio:16/9;object-fit:cover" />
             </div>
@@ -272,9 +277,14 @@
     const title = document.getElementById('postTitle').value.trim();
     const topic = document.getElementById('aiTopic').value.trim() || title;
     if (!topic) { showToast('Enter a title or topic first', 'error'); return; }
+    const currentContent = document.getElementById('postContent').innerText.trim().substring(0, 600);
+    const currentExcerpt = document.getElementById('postExcerpt').value.trim();
     document.getElementById('aiProgress').style.display = '';
     try {
-      const data = await adminFetch('/ai/generate-image', { method: 'POST', body: JSON.stringify({ prompt: topic, postId: isEditing ? postId : undefined }) });
+      const data = await adminFetch('/ai/generate-image', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: topic, postId: isEditing ? postId : undefined, context: currentExcerpt || currentContent })
+      });
       if (data.imageUrl) {
         document.getElementById('postImage').value = data.imageUrl;
         previewImage();
@@ -282,6 +292,32 @@
       }
     } catch (err) { showToast(err.message, 'error'); }
     finally { document.getElementById('aiProgress').style.display = 'none'; }
+  }
+
+  async function uploadFeaturedImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Please choose an image file', 'error'); input.value = ''; return; }
+    const formData = new FormData();
+    formData.append('image', file);
+    showToast('Uploading image…', 'info');
+    try {
+      const token = localStorage.getItem('wm_token');
+      const res = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      document.getElementById('postImage').value = data.url;
+      previewImage();
+      showToast('Image uploaded!', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      input.value = '';
+    }
   }
 </script>
 <script src="/js/pwa.js"></script>

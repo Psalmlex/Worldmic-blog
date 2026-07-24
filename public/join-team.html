@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join Our Team — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="main-layout" style="padding-top:32px;max-width:640px;margin:0 auto;padding-left:24px;padding-right:24px">
+    <main style="width:100%">
+      <h1 class="section-title" style="margin-bottom:8px">Join Our Team</h1>
+      <p style="color:var(--text-muted);margin-bottom:28px">Interested in writing or helping run World Mic? Tell us a bit about yourself.</p>
+
+      <form id="joinForm" style="display:flex;flex-direction:column;gap:16px;background:var(--bg-white);padding:24px;border-radius:12px;border:1px solid var(--border)">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input class="form-input" id="jtName" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email *</label>
+          <input class="form-input" id="jtEmail" type="email" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">What role are you interested in?</label>
+          <input class="form-input" id="jtRole" placeholder="e.g. Writer, Editor, Photographer" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tell us about yourself *</label>
+          <textarea class="form-input" id="jtMessage" style="min-height:140px;resize:vertical" required placeholder="Your experience, why you want to join, links to your work…"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" id="jtSubmit">Submit Application</button>
+        <div id="jtResult" style="font-size:0.9rem"></div>
+      </form>
+    </main>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    document.getElementById('joinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('jtSubmit');
+      const result = document.getElementById('jtResult');
+      const payload = {
+        type: 'team',
+        name: document.getElementById('jtName').value.trim(),
+        email: document.getElementById('jtEmail').value.trim(),
+        roleInterest: document.getElementById('jtRole').value.trim(),
+        message: document.getElementById('jtMessage').value.trim(),
+      };
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        const data = await apiFetch('/inquiries', { method: 'POST', body: JSON.stringify(payload) });
+        result.innerHTML = `<span style="color:var(--success)">✅ ${data.message}</span>`;
+        document.getElementById('joinForm').reset();
+      } catch (err) {
+        result.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Submit Application';
+      }
+    });
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

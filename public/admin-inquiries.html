@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inquiries — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Inquiries</div>
+      <div class="topbar-actions"><div class="admin-avatar" id="adminAvatar">A</div></div>
+    </div>
+    <div class="admin-content">
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="btn btn-sm" id="tabAll" onclick="setTab('all')">All</button>
+        <button class="btn btn-sm" id="tabTeam" onclick="setTab('team')">🧑‍💼 Join Team</button>
+        <button class="btn btn-sm" id="tabPartner" onclick="setTab('partner')">🤝 Partner/Ads</button>
+      </div>
+      <div id="inquiriesList" style="display:flex;flex-direction:column;gap:14px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let allInquiries = [];
+  let currentTab = 'all';
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    if (!requireAdminRole()) return;
+    renderAdminLayout('/admin-inquiries.html');
+    loadInquiries();
+  });
+
+  async function loadInquiries() {
+    try {
+      allInquiries = await adminFetch('/inquiries/admin/all');
+      render();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabAll').style.opacity = tab === 'all' ? '1' : '0.6';
+    document.getElementById('tabTeam').style.opacity = tab === 'team' ? '1' : '0.6';
+    document.getElementById('tabPartner').style.opacity = tab === 'partner' ? '1' : '0.6';
+    render();
+  }
+
+  function render() {
+    const filtered = currentTab === 'all' ? allInquiries : allInquiries.filter(i => i.type === currentTab);
+    const list = document.getElementById('inquiriesList');
+    if (!filtered.length) { list.innerHTML = `<div class="table-card" style="padding:30px;text-align:center;color:#9a9aaa">No inquiries yet.</div>`; return; }
+    list.innerHTML = filtered.map(i => `
+      <div class="table-card" style="padding:18px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+          <div>
+            <span class="badge badge-${i.status === 'new' ? 'pending' : 'approved'}">${i.status}</span>
+            <span style="font-size:0.78rem;background:#f0f4ff;color:#1a5eb8;padding:2px 8px;border-radius:4px;font-weight:600;margin-left:6px">${i.type === 'team' ? '🧑‍💼 Join Team' : '🤝 Partner/Ads'}</span>
+            <div style="font-weight:700;margin-top:8px">${i.name} <span style="font-weight:400;color:#7a7a8a">— ${i.email}</span></div>
+            ${i.company ? `<div style="font-size:0.85rem;color:#555">Company: ${i.company}</div>` : ''}
+            ${i.roleInterest ? `<div style="font-size:0.85rem;color:#555">Interested in: ${i.roleInterest}</div>` : ''}
+            <div style="font-size:0.85rem;color:#555;margin-top:8px;white-space:pre-wrap">${i.message}</div>
+            <div style="font-size:0.75rem;color:#9a9aaa;margin-top:8px">${fmtDate(i.createdAt, true)}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <a href="mailto:${i.email}" class="btn btn-ghost btn-sm">Reply</a>
+            ${i.status === 'new' ? `<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a" onclick="markReviewed('${i._id}')">Mark Reviewed</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="removeInquiry('${i._id}')">✕</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  async function markReviewed(id) {
+    try { await adminFetch(`/inquiries/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'reviewed' }) }); loadInquiries(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function removeInquiry(id) {
+    if (!confirmAction('Remove this inquiry?')) return;
+    try { await adminFetch(`/inquiries/${id}`, { method: 'DELETE' }); showToast('Removed', 'success'); loadInquiries(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

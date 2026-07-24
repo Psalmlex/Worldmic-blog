@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Comment, Ad, Settings, Subscriber } = require('../models/Models');
+const { Comment, Ad, Settings, Subscriber, Inquiry } = require('../models/Models');
 const auth = require('../middleware/auth');
 
 // ======= COMMENTS =======
@@ -199,6 +199,57 @@ router.post('/newsletter/send', auth, async (req, res) => {
     const { sendBulkEmail } = require('../services/emailService');
     const result = await sendBulkEmail(subscribers.map(s => s.email), subject, html);
     res.json({ message: `Sent to ${result.sent} subscriber${result.sent !== 1 ? 's' : ''}`, ...result, total: subscribers.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ======= JOIN THE TEAM / PARTNER INQUIRIES =======
+router.post('/inquiries', async (req, res) => {
+  try {
+    const { type, name, email, company, roleInterest, message } = req.body;
+    if (!['team', 'partner'].includes(type)) return res.status(400).json({ error: 'Invalid inquiry type' });
+    if (!name || !email || !message) return res.status(400).json({ error: 'Name, email, and message are required' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
+    await Inquiry.create({ type, name, email, company, roleInterest, message });
+    res.status(201).json({ message: type === 'team' ? "Thanks for applying! We'll be in touch." : "Thanks for reaching out! We'll be in touch." });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/inquiries/admin/all', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const inquiries = await Inquiry.find().sort({ createdAt: -1 });
+    res.json(inquiries);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/inquiries/:id', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, { status: req.body.status || 'reviewed' }, { new: true });
+    res.json(inquiry);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/inquiries/:id', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    await Inquiry.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Inquiry removed' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ======= ABOUT PAGE =======
+// Separate from /settings on purpose: any staff member (Editor included) can edit page content,
+// even though the general settings PUT route is admin-only.
+router.get('/about', async (req, res) => {
+  try {
+    const setting = await Settings.findOne({ key: 'aboutPageContent' });
+    res.json({ content: setting?.value || '' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/about', auth, async (req, res) => {
+  try {
+    const { content } = req.body;
+    await Settings.findOneAndUpdate({ key: 'aboutPageContent' }, { key: 'aboutPageContent', value: content || '' }, { upsert: true });
+    res.json({ message: 'About page updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

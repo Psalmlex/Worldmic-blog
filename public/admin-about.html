@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Page — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Edit About Page</div>
+      <div class="topbar-actions">
+        <a href="/about.html" target="_blank" class="btn btn-ghost btn-sm">View Live →</a>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="form-card" style="max-width:760px">
+        <div class="form-card-title">📄 About Page Content</div>
+        <div class="form-group">
+          <label class="form-label">Content (basic HTML supported: &lt;p&gt;, &lt;h2&gt;, &lt;b&gt;, &lt;a&gt;, &lt;ul&gt;/&lt;li&gt;)</label>
+          <textarea class="form-input" id="aboutContent" style="min-height:320px;resize:vertical;font-family:monospace;font-size:0.85rem"></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary btn-sm" onclick="saveAbout()">Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="previewAbout()">Preview</button>
+        </div>
+      </div>
+      <div class="form-card" id="previewCard" style="max-width:760px;margin-top:20px;display:none">
+        <div class="form-card-title">Preview</div>
+        <div id="previewBox" style="border:1px solid #eee;border-radius:8px;padding:16px;background:#fafafa"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-about.html');
+    loadAbout();
+  });
+
+  async function loadAbout() {
+    try {
+      const res = await fetch('/api/about');
+      const data = await res.json();
+      document.getElementById('aboutContent').value = data.content || '';
+    } catch (err) { showToast('Failed to load About page', 'error'); }
+  }
+
+  async function saveAbout() {
+    const content = document.getElementById('aboutContent').value;
+    try {
+      await adminFetch('/about', { method: 'PUT', body: JSON.stringify({ content }) });
+      showToast('About page saved!', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function previewAbout() {
+    document.getElementById('previewBox').innerHTML = document.getElementById('aboutContent').value;
+    document.getElementById('previewCard').style.display = '';
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

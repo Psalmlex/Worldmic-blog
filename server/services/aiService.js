@@ -322,4 +322,34 @@ async function generateImage(prompt) {
   }
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage };
+// ─── Turn a topic/post into a strong, on-brand image-generation prompt ────────
+// A bare headline ("Cristiano Ronaldo: The Last Dance") is a weak prompt for an image
+// model — it has no concrete scene to render. This step asks the text AI to describe
+// an actual visual scene grounded in the post's real content instead.
+async function craftImagePrompt(topic, contextText = '') {
+  const system = `You write concise, vivid prompts for AI image generators (Stability AI / DALL-E) to create featured images for blog posts.
+Rules:
+- Describe a concrete visual SCENE: setting, objects, mood, lighting, color palette, composition. Do not restate the headline as a caption.
+- Never include any text, words, letters, or logos to be rendered in the image.
+- Never describe a specific real, named, identifiable person's face or likeness — even if the topic is about a real public figure, use symbolic/contextual imagery instead (e.g. for a footballer: a stadium, a ball mid-air, a trophy, a crowd silhouette — not a portrait of the individual). This keeps results both more reliable and safer.
+- Style: professional editorial photography or clean modern illustration, suitable for a blog header image.
+- Output ONE paragraph, 2-3 sentences, no preamble, no quotation marks.`;
+  const userMsg = contextText
+    ? `Blog post topic: "${topic}"\nContent context: ${contextText.substring(0, 600)}\n\nWrite the image prompt:`
+    : `Blog post topic: "${topic}"\n\nWrite the image prompt:`;
+  try {
+    const prompt = await callAI(system, userMsg, 200);
+    return prompt.trim().replace(/^["']|["']$/g, '');
+  } catch {
+    return topic; // fall back to the raw topic if prompt-crafting fails — generation still works, just less refined
+  }
+}
+
+// High-level entrypoint: crafts a proper scene prompt, then generates the image from it
+async function generateFeaturedImage(topic, contextText = '') {
+  const craftedPrompt = await craftImagePrompt(topic, contextText);
+  const result = await generateImage(craftedPrompt);
+  return { ...result, promptUsed: craftedPrompt };
+}
+
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage };

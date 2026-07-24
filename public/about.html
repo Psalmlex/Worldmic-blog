@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+  <div id="adSlotTop" class="ad-slot"></div>
+
+  <div class="main-layout" style="padding-top:32px;max-width:800px;margin:0 auto;padding-left:24px;padding-right:24px">
+    <main style="width:100%">
+      <h1 class="section-title" style="margin-bottom:20px">About Us</h1>
+      <div id="aboutContent" class="post-body">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+
+      <div style="margin-top:40px;padding:24px;background:var(--bg-white);border-radius:12px;border:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
+        <a href="/join-team.html" class="btn btn-primary">Join Our Team</a>
+        <a href="/partner.html" class="btn btn-secondary">Partner With Us</a>
+      </div>
+    </main>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    async function loadAbout() {
+      const el = document.getElementById('aboutContent');
+      try {
+        const data = await apiFetch('/about');
+        el.innerHTML = data.content && data.content.trim()
+          ? data.content
+          : `<p>World Mic is a multi-category blog platform covering news, culture, tech, and more. We're just getting our About page set up — check back soon!</p>`;
+      } catch {
+        el.innerHTML = `<p>World Mic is a multi-category blog platform covering news, culture, tech, and more.</p>`;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', loadAbout);
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

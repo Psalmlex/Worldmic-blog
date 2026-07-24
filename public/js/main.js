@@ -106,6 +106,9 @@ async function renderFooter() {
           <li><a href="/">Home</a></li>
           <li><a href="/category.html">Categories</a></li>
           <li><a href="/search.html">Search</a></li>
+          <li><a href="/about.html">About Us</a></li>
+          <li><a href="/join-team.html">Join Our Team</a></li>
+          <li><a href="/partner.html">Partner / Advertise</a></li>
         </ul>
       </div>
       <div>
