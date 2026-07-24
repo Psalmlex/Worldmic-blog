@@ -69,12 +69,16 @@
             <div class="post-body">${post.content}</div>
             ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>` : ''}
             <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
               <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
               <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
               <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
             </div>
+            <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
           </div>`;
 
+        updateLikeButtonState();
+        initAdSense();
         loadComments(postId);
         loadRelated(post.category, postId);
         renderAds('topAd', 'top');
@@ -147,6 +151,38 @@
           `<li class="trending-item"><div class="trending-title"><a href="/category.html?name=${encodeURIComponent(c)}">${c}</a></div></li>`
         ).join('');
       } catch {}
+    }
+
+    function getLikedPosts() {
+      try { return JSON.parse(localStorage.getItem('wm_liked') || '[]'); } catch { return []; }
+    }
+
+    function updateLikeButtonState() {
+      const btn = document.getElementById('likeBtn');
+      if (!btn) return;
+      if (getLikedPosts().includes(postId)) {
+        btn.classList.add('liked');
+        btn.innerHTML = `❤️ <span id="likeCount">${btn.querySelector('#likeCount')?.textContent || ''}</span>`;
+      }
+    }
+
+    async function toggleLike() {
+      const liked = getLikedPosts();
+      const btn = document.getElementById('likeBtn');
+      if (liked.includes(postId)) { showToast('You already liked this post', 'info'); return; }
+      try {
+        const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not like post');
+        document.getElementById('likeCount').textContent = data.likes;
+        btn.classList.add('liked');
+        btn.innerHTML = `❤️ <span id="likeCount">${data.likes}</span>`;
+        liked.push(postId);
+        localStorage.setItem('wm_liked', JSON.stringify(liked));
+        showToast('Thanks for the like!', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
     }
 
     function sharePost(platform) {

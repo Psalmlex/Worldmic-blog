@@ -110,6 +110,42 @@
             <div class="form-group"><label class="form-label">Google Analytics ID</label><input class="form-input" id="gaId" placeholder="G-XXXXXXXXXX" /><div class="form-hint">Optional. Add your GA4 measurement ID.</div></div>
           </div>
         </div>
+
+        <!-- AdSense -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">📢 Google AdSense</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group">
+              <label class="form-label">Publisher ID</label>
+              <input class="form-input" id="adsenseClientId" placeholder="ca-pub-1234567890123456" />
+              <div class="form-hint">From your AdSense account. Leave blank to keep ads off entirely.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ad Slot — Top Banner</label>
+              <input class="form-input" id="adsenseSlotTop" placeholder="1234567890" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ad Slot — In-Content</label>
+              <input class="form-input" id="adsenseSlotContent" placeholder="1234567890" />
+              <div class="form-hint">Shown between posts on the homepage and inside articles.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Placement</label>
+              <div style="display:flex;flex-direction:column;gap:8px;padding-top:8px">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500"><input type="checkbox" id="adsenseHeaderEnabled" style="width:auto" /> Show ad at top of pages</label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500"><input type="checkbox" id="adsenseContentEnabled" style="width:auto" /> Show ads between/within posts</label>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:12px 14px;background:#fff8e1;border:1px solid #ffe08a;border-radius:8px;font-size:0.82rem;color:#5c4a00">
+            ⚠️ Don't enable this until your AdSense account is fully approved for this domain, or ads won't render (and repeated invalid setups can slow future approval).
+          </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px dashed #ddd">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:600;margin-bottom:10px"><input type="checkbox" id="adsenseAdminEnabled" style="width:auto" /> Show a real AdSense ad to Editors before AI tool actions</label>
+            <div class="form-hint" style="margin-top:-4px;margin-bottom:10px">⚠️ Not recommended: Google AdSense policy generally prohibits serving ads to internal/logged-in staff tool usage — this can risk your whole AdSense account. Leave unchecked to show a safe internal placeholder instead.</div>
+            <div class="form-group"><label class="form-label">Ad Slot — AI Tool Gate</label><input class="form-input" id="adsenseSlotInterstitial" placeholder="1234567890" /></div>
+          </div>
+        </div>
       </div>
 
       <div style="margin-top:24px;padding:18px;background:#f0f4ff;border-radius:10px;border:1px solid #c7d7f7">
@@ -132,6 +168,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
     if (!await requireAuth()) return;
+    if (!requireAdminRole()) return;
     renderAdminLayout('/admin-settings.html');
     loadSettings();
   });
@@ -139,8 +176,11 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
+      document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
+      document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
+      document.getElementById('adsenseAdminEnabled').checked = s.adsenseAdminEnabled === 'true';
       if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
       document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
       document.getElementById('primaryColorHex').addEventListener('input', e => { document.getElementById('primaryColor').value = e.target.value; });
@@ -148,10 +188,13 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;
+    updates.adsenseHeaderEnabled = String(document.getElementById('adsenseHeaderEnabled').checked);
+    updates.adsenseContentEnabled = String(document.getElementById('adsenseContentEnabled').checked);
+    updates.adsenseAdminEnabled = String(document.getElementById('adsenseAdminEnabled').checked);
     try {
       await adminFetch('/settings', { method: 'PUT', body: JSON.stringify(updates) });
       showToast('Settings saved!', 'success');

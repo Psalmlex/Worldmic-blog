@@ -39,6 +39,19 @@ async function seedSettings() {
 }
 seedSettings().catch(console.error);
 
+// ads.txt — required by Google AdSense for site verification, generated from the configured publisher ID
+app.get('/ads.txt', async (req, res) => {
+  try {
+    const setting = await Settings.findOne({ key: 'adsenseClientId' });
+    const clientId = setting?.value?.replace('ca-pub-', '').trim();
+    res.type('text/plain');
+    if (!clientId) return res.send('# AdSense not configured yet');
+    res.send(`google.com, pub-${clientId}, DIRECT, f08c47fec0942fa0`);
+  } catch (err) {
+    res.status(500).send('# error');
+  }
+});
+
 // Catch-all: serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

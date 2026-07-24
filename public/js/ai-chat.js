@@ -290,6 +290,10 @@ class MicaAI {
   }
 
   async handleAction(action) {
+    if (localStorage.getItem('wm_role') === 'editor') {
+      const proceed = await this.showAdGate();
+      if (!proceed) return;
+    }
     this.switchTab('chat');
     if (action === 'trending') {
       this.appendMessage('ai', `Let me pull some trending topic ideas for your blog…`);
@@ -319,6 +323,52 @@ class MicaAI {
       this.appendMessage('ai', prompts[action]);
       this.pendingAction = action;
       document.getElementById('aiInput').focus();
+    }
+  }
+
+  showAdGate() {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'ai-ad-gate-overlay';
+      overlay.innerHTML = `
+        <div class="ai-ad-gate-box">
+          <div class="ad-label">Sponsored</div>
+          <div id="aiAdGateSlot" class="ai-ad-gate-slot"><div class="ai-ad-placeholder">Loading…</div></div>
+          <button class="btn btn-primary btn-sm" id="aiAdGateContinue" disabled>Continue in 3s…</button>
+        </div>`;
+      document.body.appendChild(overlay);
+      this.renderAdGateContent(document.getElementById('aiAdGateSlot'));
+
+      let count = 3;
+      const btn = document.getElementById('aiAdGateContinue');
+      const timer = setInterval(() => {
+        count--;
+        if (count <= 0) { clearInterval(timer); btn.disabled = false; btn.textContent = 'Continue →'; }
+        else btn.textContent = `Continue in ${count}s…`;
+      }, 1000);
+      btn.addEventListener('click', () => { overlay.remove(); resolve(true); });
+    });
+  }
+
+  async renderAdGateContent(container) {
+    try {
+      const res = await fetch('/api/settings');
+      const s = await res.json();
+      // Only renders a real AdSense unit if explicitly opted in — otherwise a safe internal placeholder
+      if (s.adsenseAdminEnabled === 'true' && s.adsenseClientId && s.adsenseSlotInterstitial) {
+        container.innerHTML = `<ins class="adsbygoogle" style="display:block;width:100%" data-ad-client="${s.adsenseClientId}" data-ad-slot="${s.adsenseSlotInterstitial}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+        if (!window.adsbygoogle) {
+          const script = document.createElement('script');
+          script.async = true; script.crossOrigin = 'anonymous';
+          script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${s.adsenseClientId}`;
+          document.head.appendChild(script);
+        }
+        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch {}
+      } else {
+        container.innerHTML = `<div class="ai-ad-placeholder">📢 Thanks for using World Mic's AI tools!</div>`;
+      }
+    } catch {
+      container.innerHTML = `<div class="ai-ad-placeholder">📢 Thanks for using World Mic's AI tools!</div>`;
     }
   }
 

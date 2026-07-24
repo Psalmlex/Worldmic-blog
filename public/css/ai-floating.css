@@ -162,3 +162,11 @@
   .ai-chat-messages { max-height: 45vh; }
   .ai-chat-input input { font-size: 16px; } /* prevent iOS zoom */
 }
+
+/* ── AI Tool Ad Gate (shown to Editors before an AI action runs) ── */
+.ai-ad-gate-overlay { position: fixed; inset: 0; background: rgba(15,17,26,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.ai-ad-gate-box { background: #fff; border-radius: 16px; padding: 22px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.ai-ad-gate-box .ad-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #9a9aaa; margin-bottom: 10px; }
+.ai-ad-gate-slot { min-height: 90px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.ai-ad-placeholder { background: linear-gradient(135deg,#f0f4ff,#eef2ff); border: 1px dashed #c7d7f7; border-radius: 10px; padding: 18px; font-size: 0.88rem; color: #445; width: 100%; }
+.ai-ad-gate-box button { width: 100%; }

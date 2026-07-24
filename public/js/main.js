@@ -4,6 +4,24 @@
 
 const API = '/api';
 
+// ===== DARK MODE =====
+const SUN_ICON = '<svg viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zM4.22 4.22a1 1 0 0 1 1.41 0l.71.71a1 1 0 1 1-1.41 1.41l-.71-.71a1 1 0 0 1 0-1.41zm14.14 14.14a1 1 0 0 1 1.41 0l.71.71a1 1 0 1 1-1.41 1.41l-.71-.71a1 1 0 0 1 0-1.41zM1 12a1 1 0 0 1 1-1h1a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1zm18 0a1 1 0 0 1 1-1h1a1 1 0 1 1 0 2h-1a1 1 0 0 1-1-1zM4.22 19.78a1 1 0 0 1 0-1.41l.71-.71a1 1 0 1 1 1.41 1.41l-.71.71a1 1 0 0 1-1.41 0zM18.36 5.64a1 1 0 0 1 0-1.41l.71-.71a1 1 0 1 1 1.41 1.41l-.71.71a1 1 0 0 1-1.41 0z"/></svg>';
+const MOON_ICON = '<svg viewBox="0 0 24 24"><path d="M12.1 22c-5.5 0-10-4.5-10-10 0-4.8 3.4-8.9 8-9.8.4-.1.8.1 1 .5.2.4.1.8-.2 1.1-1.8 1.7-2.8 4-2.8 6.5 0 5 4 9 9 9 .5 0 1-.1 1.5-.1.4-.1.8.1 1 .5.2.4 0 .8-.3 1.1-1.9 1.4-4.2 2.2-6.6 2.2-.2 0-.4 0-.6 0z"/></svg>';
+
+(function initTheme() {
+  const saved = localStorage.getItem('wm_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+})();
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('wm_theme', next);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.innerHTML = next === 'dark' ? SUN_ICON : MOON_ICON;
+}
+
 // ===== API HELPERS =====
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem('wm_token');
@@ -95,8 +113,36 @@ async function renderFooter() {
         <div class="footer-contact-item"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><span>${s.footerContact || 'Contact number'}</span></div>
         <div class="footer-contact-item"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span>${s.footerAddress || 'Address'}</span></div>
       </div>
+      <div>
+        <h3 class="footer-heading">Newsletter</h3>
+        <p style="font-size:0.85rem;opacity:0.65;margin-bottom:14px;line-height:1.6">Get the latest posts delivered to your inbox.</p>
+        <form class="newsletter-form" id="newsletterForm">
+          <input type="email" class="newsletter-input" id="newsletterEmail" placeholder="you@email.com" required />
+          <button type="submit" class="btn btn-primary btn-sm">Join</button>
+        </form>
+      </div>
     </div>
     <div class="footer-bottom"><p>© ${new Date().getFullYear()} ${s.siteName || 'World Mic'}. All rights reserved.</p></div>`;
+  document.getElementById('newsletterForm')?.addEventListener('submit', subscribeNewsletter);
+}
+
+async function subscribeNewsletter(e) {
+  e.preventDefault();
+  const input = document.getElementById('newsletterEmail');
+  const email = input.value.trim();
+  if (!email) return;
+  const btn = e.target.querySelector('button');
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const data = await apiFetch('/subscribe', { method: 'POST', body: JSON.stringify({ email }) });
+    showToast(data.message || 'Subscribed!', 'success');
+    input.value = '';
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = originalText;
+  }
 }
 
 // ===== RENDER HEADER =====
@@ -113,12 +159,15 @@ async function renderHeader(activePage = '') {
         <a href="/search.html" class="${activePage === 'search' ? 'active' : ''}">Search</a>
       </nav>
       <div class="header-search"><input type="text" class="search-input" placeholder="Search posts..." id="headerSearch" /><button class="btn btn-primary btn-sm" onclick="doSearch()">Search</button></div>
+      <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle dark mode"></button>
       <div class="hamburger" onclick="toggleMobileMenu()"><span></span><span></span><span></span></div>
     </div>
     <div class="mobile-menu" id="mobileMenu">
       <a href="/">Home</a><a href="/category.html">Categories</a><a href="/search.html">Search</a>
     </div>`;
   document.getElementById('headerSearch')?.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) themeBtn.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? SUN_ICON : MOON_ICON;
 }
 
 function doSearch() {
@@ -165,8 +214,46 @@ function postCardHTML(post) {
     </div>`;
 }
 
+// ===== ADSENSE =====
+let _adsenseScriptLoaded = false;
+
+async function initAdSense() {
+  const s = await getSettings();
+  const clientId = s.adsenseClientId;
+  if (!clientId) return; // not configured — do nothing
+
+  if (!_adsenseScriptLoaded) {
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}`;
+    script.crossOrigin = 'anonymous';
+    document.head.appendChild(script);
+    _adsenseScriptLoaded = true;
+  }
+
+  if (s.adsenseHeaderEnabled === 'true' && s.adsenseSlotTop) {
+    renderAdSlot('adSlotTop', clientId, s.adsenseSlotTop);
+  }
+  if (s.adsenseContentEnabled === 'true' && s.adsenseSlotContent) {
+    document.querySelectorAll('[data-ad-slot="content"]').forEach((el, i) => {
+      renderAdSlot(el.id || (el.id = `adSlotContent${i}`), clientId, s.adsenseSlotContent);
+    });
+  }
+}
+
+function renderAdSlot(containerId, clientId, slotId) {
+  const container = document.getElementById(containerId);
+  if (!container || container.dataset.rendered) return;
+  container.dataset.rendered = '1';
+  container.innerHTML = `
+    <div class="ad-label">Advertisement</div>
+    <ins class="adsbygoogle" style="display:block" data-ad-client="${clientId}" data-ad-slot="${slotId}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch {}
+}
+
 // Init on every page
 document.addEventListener('DOMContentLoaded', async () => {
   await renderHeader();
   await renderFooter();
+  initAdSense();
 });

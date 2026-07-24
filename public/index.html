@@ -12,6 +12,7 @@
 </head>
 <body>
   <header class="site-header" id="site-header"></header>
+  <div id="adSlotTop" class="ad-slot"></div>
 
   <div class="category-nav">
     <div class="category-nav-inner" id="categoryNav">
@@ -68,15 +69,26 @@
         if (page === 1 && !category) {
           const [featured, ...rest] = data.posts;
           renderHero(featured);
-          grid.innerHTML = rest.map(postCardHTML).join('');
+          grid.innerHTML = withContentAds(rest);
         } else {
           document.getElementById('heroSection').style.display = 'none';
-          grid.innerHTML = data.posts.map(postCardHTML).join('');
+          grid.innerHTML = withContentAds(data.posts);
         }
         renderPagination(page, data.pages);
+        initAdSense();
       } catch (err) {
         grid.innerHTML = `<div class="empty-state full-width"><h3>Failed to load posts</h3><p>${err.message}</p></div>`;
       }
+    }
+
+    function withContentAds(posts) {
+      const cards = posts.map(postCardHTML);
+      const out = [];
+      cards.forEach((c, i) => {
+        out.push(c);
+        if ((i + 1) % 3 === 0 && i !== cards.length - 1) out.push(`<div class="ad-slot ad-slot-grid" data-ad-slot="content"></div>`);
+      });
+      return out.join('');
     }
 
     function renderHero(post) {
