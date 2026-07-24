@@ -122,22 +122,33 @@
     if (!allAds.length) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9a9aaa">No ads yet. Create your first ad!</td></tr>'; return; }
     body.innerHTML = allAds.map(a => {
       const ctr = a.impressions > 0 ? ((a.clicks/a.impressions)*100).toFixed(2) : '0.00';
+      const isAdmin = localStorage.getItem('wm_role') === 'admin';
+      const pending = a.approvalStatus === 'pending';
       return `<tr>
-        <td><div style="font-weight:600">${a.name}</div>${a.linkUrl ? `<div style="font-size:0.75rem;color:#9a9aaa">${a.linkUrl}</div>` : ''}</td>
+        <td><div style="font-weight:600">${a.name}</div>${a.linkUrl ? `<div style="font-size:0.75rem;color:#9a9aaa">${a.linkUrl}</div>` : ''}${pending ? '<div style="font-size:0.72rem;color:#d97706;font-weight:600;margin-top:2px">⏳ Awaiting admin approval</div>' : ''}</td>
         <td><span class="badge badge-draft">${a.type}</span></td>
         <td><span style="font-size:0.82rem;background:#f0f4ff;padding:3px 8px;border-radius:4px;color:#1a5eb8;font-weight:600">${a.position}</span></td>
-        <td><span class="badge ${a.isActive ? 'badge-active' : 'badge-inactive'}">${a.isActive ? 'Active' : 'Inactive'}</span></td>
+        <td><span class="badge ${pending ? 'badge-pending' : (a.isActive ? 'badge-active' : 'badge-inactive')}">${pending ? 'Pending' : (a.isActive ? 'Active' : 'Inactive')}</span></td>
         <td>${a.impressions.toLocaleString()}</td>
         <td>${a.clicks.toLocaleString()}</td>
         <td>${ctr}%</td>
         <td>
-          <div style="display:flex;gap:5px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="editAd('${a._id}')">Edit</button>
-            <button class="btn btn-sm" style="background:${a.isActive?'#fee2e2;color:#e63a2e':'#dcfce7;color:#16a34a'}" onclick="toggleAd('${a._id}',${a.isActive})">${a.isActive ? 'Pause' : 'Activate'}</button>
+            ${pending && isAdmin ? `<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a" onclick="approveAd('${a._id}')">Approve</button>` : ''}
+            ${!pending ? `<button class="btn btn-sm" style="background:${a.isActive?'#fee2e2;color:#e63a2e':'#dcfce7;color:#16a34a'}" onclick="toggleAd('${a._id}',${a.isActive})">${a.isActive ? 'Pause' : 'Activate'}</button>` : ''}
             <button class="btn btn-danger btn-sm" onclick="deleteAd('${a._id}')">✕</button>
           </div>
         </td>
       </tr>`;}).join('');
+  }
+
+  async function approveAd(id) {
+    try {
+      await adminFetch(`/ads/${id}/approve`, { method: 'POST' });
+      showToast('Ad approved and live', 'success');
+      loadAds();
+    } catch (err) { showToast(err.message, 'error'); }
   }
 
   function openAdModal(id = null) {
@@ -186,21 +197,21 @@
       isActive: document.getElementById('adActive').checked,
     };
     try {
+      let result;
       if (editingId) {
-        await adminFetch(`/ads/${editingId}`, { method: 'PUT', body: JSON.stringify(data) });
-        showToast('Ad updated!', 'success');
+        result = await adminFetch(`/ads/${editingId}`, { method: 'PUT', body: JSON.stringify(data) });
       } else {
-        await adminFetch('/ads', { method: 'POST', body: JSON.stringify(data) });
-        showToast('Ad created!', 'success');
+        result = await adminFetch('/ads', { method: 'POST', body: JSON.stringify(data) });
       }
+      showToast(result.approvalStatus === 'pending' ? 'Ad saved — waiting for admin approval to go live' : (editingId ? 'Ad updated!' : 'Ad created!'), 'success');
       closeModal(); loadAds();
     } catch (err) { showToast(err.message, 'error'); }
   }
 
   async function toggleAd(id, isActive) {
     try {
-      await adminFetch(`/ads/${id}`, { method: 'PUT', body: JSON.stringify({ isActive: !isActive }) });
-      showToast(`Ad ${!isActive ? 'activated' : 'paused'}`, 'success');
+      const result = await adminFetch(`/ads/${id}`, { method: 'PUT', body: JSON.stringify({ isActive: !isActive }) });
+      showToast(result.approvalStatus === 'pending' ? 'Waiting for admin approval to go live' : `Ad ${result.isActive ? 'activated' : 'paused'}`, 'success');
       loadAds();
     } catch (err) { showToast(err.message, 'error'); }
   }

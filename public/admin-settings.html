@@ -102,6 +102,20 @@
           </div>
         </div>
 
+        <!-- Email -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">📧 Email / Newsletter</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group"><label class="form-label">SMTP Host</label><input class="form-input" id="smtpHost" placeholder="smtp.gmail.com or smtp-relay.brevo.com" /></div>
+            <div class="form-group"><label class="form-label">SMTP Port</label><input class="form-input" id="smtpPort" placeholder="587" /></div>
+            <div class="form-group"><label class="form-label">SMTP Username</label><input class="form-input" id="smtpUser" placeholder="your@email.com" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">SMTP Password</label><input class="form-input" id="smtpPass" type="password" placeholder="App password or API key" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">From Name</label><input class="form-input" id="smtpFromName" placeholder="World Mic" /></div>
+            <div class="form-group"><label class="form-label">From Email</label><input class="form-input" id="smtpFromEmail" placeholder="news@yourdomain.com" /></div>
+          </div>
+          <div class="form-hint">Powers the Newsletter tool (available to Admin and Editor). Gmail requires an "App Password", not your regular password — or use a transactional service like Brevo/SendGrid/Mailgun.</div>
+        </div>
+
         <!-- SEO -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">🔍 SEO & Meta</div>
@@ -176,7 +190,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -188,7 +202,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;

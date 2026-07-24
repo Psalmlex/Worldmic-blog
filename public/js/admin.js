@@ -78,6 +78,7 @@ function renderAdminLayout(activeLink = '') {
     { href: '/admin-create.html', icon: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z', label: 'New Post' },
     { href: '/admin-comments.html', icon: 'M21 6.5c0-1.38-1.12-2.5-2.5-2.5h-15C2.12 4 1 5.12 1 6.5v11C1 18.88 2.12 20 3.5 20H19l4 4V6.5z', label: 'Comments' },
     { href: '/admin-subscribers.html', icon: 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z', label: 'Subscribers' },
+    { href: '/admin-newsletter.html', icon: 'M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z', label: 'Newsletter' },
     { href: '/admin-ads.html', icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', label: 'Ads' },
   ];
   if (role === 'admin') {

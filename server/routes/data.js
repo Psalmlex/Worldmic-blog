@@ -64,7 +64,13 @@ router.get('/ads/admin/all', auth, async (req, res) => {
 
 router.post('/ads', auth, async (req, res) => {
   try {
-    const ad = new Ad(req.body);
+    const isAdmin = req.admin?.role === 'admin';
+    const ad = new Ad({
+      ...req.body,
+      createdBy: req.admin?.username || '',
+      isActive: isAdmin ? req.body.isActive !== false : false,
+      approvalStatus: isAdmin ? 'approved' : 'pending',
+    });
     await ad.save();
     res.status(201).json(ad);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -72,7 +78,29 @@ router.post('/ads', auth, async (req, res) => {
 
 router.put('/ads/:id', auth, async (req, res) => {
   try {
-    const ad = await Ad.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const isAdmin = req.admin?.role === 'admin';
+    const updates = { ...req.body };
+    if (!isAdmin && updates.isActive === true) {
+      // Editors can't flip an ad live directly — it goes back to pending for admin approval
+      updates.isActive = false;
+      updates.approvalStatus = 'pending';
+    }
+    const ad = await Ad.findByIdAndUpdate(req.params.id, updates, { new: true });
+    res.json(ad);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/ads/admin/pending', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const ads = await Ad.find({ approvalStatus: 'pending' }).sort({ createdAt: -1 });
+    res.json(ads);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/ads/:id/approve', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const ad = await Ad.findByIdAndUpdate(req.params.id, { isActive: true, approvalStatus: 'approved' }, { new: true });
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
     res.json(ad);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -93,7 +121,7 @@ router.post('/ads/:id/click', async (req, res) => {
 
 // ======= SETTINGS =======
 const jwt = require('jsonwebtoken');
-const SENSITIVE_SETTINGS_KEYS = ['imageApiKey', 'textAiKey'];
+const SENSITIVE_SETTINGS_KEYS = ['imageApiKey', 'textAiKey', 'smtpPass'];
 
 router.get('/settings', async (req, res) => {
   try {
@@ -157,6 +185,20 @@ router.delete('/subscribers/:id', auth, async (req, res) => {
   try {
     await Subscriber.findByIdAndDelete(req.params.id);
     res.json({ message: 'Subscriber removed' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/newsletter/send', auth, async (req, res) => {
+  try {
+    const { subject, body } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: 'Subject and message body are required' });
+    const subscribers = await Subscriber.find({ status: 'active' }).select('email');
+    if (!subscribers.length) return res.status(400).json({ error: 'No active subscribers to send to' });
+
+    const html = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;line-height:1.6">${body}</div>`;
+    const { sendBulkEmail } = require('../services/emailService');
+    const result = await sendBulkEmail(subscribers.map(s => s.email), subject, html);
+    res.json({ message: `Sent to ${result.sent} subscriber${result.sent !== 1 ? 's' : ''}`, ...result, total: subscribers.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

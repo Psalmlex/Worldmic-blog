@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Newsletter — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Send Newsletter</div>
+      <div class="topbar-actions">
+        <span id="subCountBadge" style="font-size:0.85rem;color:#7a7a8a"></span>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="form-card" style="max-width:720px">
+        <div class="form-card-title">✉️ Compose</div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input class="form-input" id="newsSubject" placeholder="e.g. This week on World Mic" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message</label>
+          <textarea class="form-input" id="newsBody" style="min-height:220px;resize:vertical" placeholder="Write your update… basic HTML like <b>, <a href>, <br> is supported."></textarea>
+          <div class="form-hint">Sent to every active subscriber. Basic HTML tags are fine — keep it simple.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="sendNewsletter()" id="sendBtn">Send Newsletter</button>
+          <button class="btn btn-ghost btn-sm" onclick="previewNewsletter()">Preview</button>
+        </div>
+        <div id="sendResult" style="margin-top:14px;font-size:0.85rem"></div>
+      </div>
+
+      <div class="form-card" id="previewCard" style="max-width:720px;margin-top:20px;display:none">
+        <div class="form-card-title">Preview</div>
+        <div style="border:1px solid #eee;border-radius:8px;padding:16px;background:#fafafa">
+          <div style="font-weight:700;margin-bottom:10px" id="previewSubject"></div>
+          <div id="previewBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-newsletter.html');
+    loadSubCount();
+  });
+
+  async function loadSubCount() {
+    try {
+      const subs = await adminFetch('/subscribers/admin/all');
+      const active = subs.filter(s => s.status === 'active').length;
+      document.getElementById('subCountBadge').textContent = `${active} active subscriber${active !== 1 ? 's' : ''}`;
+    } catch { /* non-critical */ }
+  }
+
+  function previewNewsletter() {
+    const subject = document.getElementById('newsSubject').value.trim() || '(no subject)';
+    const body = document.getElementById('newsBody').value.trim() || '(empty message)';
+    document.getElementById('previewSubject').textContent = subject;
+    document.getElementById('previewBody').innerHTML = body;
+    document.getElementById('previewCard').style.display = '';
+  }
+
+  async function sendNewsletter() {
+    const subject = document.getElementById('newsSubject').value.trim();
+    const body = document.getElementById('newsBody').value.trim();
+    if (!subject || !body) { showToast('Subject and message are required', 'error'); return; }
+    if (!confirmAction('Send this newsletter to all active subscribers? This cannot be undone.')) return;
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const result = await adminFetch('/newsletter/send', { method: 'POST', body: JSON.stringify({ subject, body }) });
+      document.getElementById('sendResult').innerHTML = `✅ ${result.message}${result.failed ? ` (${result.failed} failed)` : ''}`;
+      showToast(result.message, 'success');
+    } catch (err) {
+      document.getElementById('sendResult').innerHTML = `❌ ${err.message}`;
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send Newsletter';
+    }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

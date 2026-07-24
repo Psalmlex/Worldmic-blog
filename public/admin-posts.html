@@ -20,6 +20,10 @@
       </div>
     </div>
     <div class="admin-content">
+      <div id="pendingDeletionsCard" class="table-card" style="display:none;margin-bottom:20px;border:1.5px solid #f59e0b">
+        <div class="table-header"><h2>⚠️ Pending Deletion Requests</h2></div>
+        <div id="pendingDeletionsBody" style="padding:14px"></div>
+      </div>
       <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm active" data-filter="all" onclick="setFilter('all',this)">All</button>
         <button class="btn btn-ghost btn-sm" data-filter="published" onclick="setFilter('published',this)">Published</button>
@@ -59,7 +63,42 @@
     if (!await requireAuth()) return;
     renderAdminLayout('/admin-posts.html');
     loadPosts();
+    if (localStorage.getItem('wm_role') === 'admin') loadPendingDeletions();
   });
+
+  async function loadPendingDeletions() {
+    try {
+      const pending = await adminFetch('/posts/admin/pending-deletions');
+      const card = document.getElementById('pendingDeletionsCard');
+      if (!pending.length) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      document.getElementById('pendingDeletionsBody').innerHTML = pending.map(p => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0">
+          <div><strong>${p.title}</strong> <span style="color:#9a9aaa;font-size:0.8rem">— requested by ${p.deletionRequestedBy || 'editor'}</span></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-danger btn-sm" onclick="approveDeletion('${p._id}')">Approve & Delete</button>
+            <button class="btn btn-ghost btn-sm" onclick="rejectDeletion('${p._id}')">Reject</button>
+          </div>
+        </div>`).join('');
+    } catch (err) { /* not admin or failed — silently skip */ }
+  }
+
+  async function approveDeletion(id) {
+    if (!confirmAction('Permanently delete this post?')) return;
+    try {
+      await adminFetch(`/posts/${id}`, { method: 'DELETE' });
+      showToast('Post deleted', 'success');
+      loadPosts(); loadPendingDeletions();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function rejectDeletion(id) {
+    try {
+      await adminFetch(`/posts/${id}/reject-deletion`, { method: 'POST' });
+      showToast('Deletion request rejected', 'success');
+      loadPosts(); loadPendingDeletions();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
 
   async function loadPosts() {
     try {
@@ -69,6 +108,7 @@
   }
 
   function renderTable(posts) {
+    const isAdmin = localStorage.getItem('wm_role') === 'admin';
     const filtered = posts.filter(p => {
       const q = document.getElementById('searchPosts').value.toLowerCase();
       const matchFilter = currentFilter === 'all' || p.status === currentFilter;
@@ -80,7 +120,7 @@
     if (!filtered.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#9a9aaa">No posts found.</td></tr>'; return; }
     body.innerHTML = filtered.map(p => `
       <tr>
-        <td><div style="font-weight:600;color:#1a1a2e;margin-bottom:2px">${p.title}</div><div style="font-size:0.75rem;color:#9a9aaa">ID: ${p._id}</div></td>
+        <td><div style="font-weight:600;color:#1a1a2e;margin-bottom:2px">${p.title}</div><div style="font-size:0.75rem;color:#9a9aaa">ID: ${p._id}</div>${p.deletionRequested ? '<div style="font-size:0.72rem;color:#d97706;font-weight:600;margin-top:2px">⚠️ Deletion pending approval</div>' : ''}</td>
         <td><span style="font-size:0.8rem;background:#e8f0fe;color:#1a5eb8;padding:3px 8px;border-radius:4px;font-weight:600">${p.category || 'General'}</span></td>
         <td><span class="badge badge-${p.status}">${p.status}</span></td>
         <td>${p.views}</td>
@@ -90,7 +130,7 @@
             <a href="/admin-create.html?id=${p._id}" class="btn btn-ghost btn-sm">Edit</a>
             <button class="btn btn-sm" style="background:#dcfce7;color:#16a34a" onclick="toggleStatus('${p._id}','${p.status}')">${p.status === 'published' ? 'Unpublish' : 'Publish'}</button>
             <a href="/post.html?id=${p._id}" target="_blank" class="btn btn-ghost btn-sm">View</a>
-            <button class="btn btn-danger btn-sm" onclick="deletePost('${p._id}')">Delete</button>
+            <button class="btn btn-danger btn-sm" ${p.deletionRequested ? 'disabled' : ''} onclick="deletePost('${p._id}')">${isAdmin ? 'Delete' : (p.deletionRequested ? 'Pending…' : 'Request Delete')}</button>
           </div>
         </td>
       </tr>`).join('');
@@ -123,8 +163,8 @@
   document.getElementById('confirmDelete').onclick = async () => {
     if (!pendingDeleteId) return;
     try {
-      await adminFetch(`/posts/${pendingDeleteId}`, { method: 'DELETE' });
-      showToast('Post deleted', 'success');
+      const data = await adminFetch(`/posts/${pendingDeleteId}`, { method: 'DELETE' });
+      showToast(data.pending ? 'Deletion requested — waiting for admin approval' : 'Post deleted', 'success');
       closeModal('deleteModal');
       loadPosts();
     } catch (err) { showToast(err.message, 'error'); }

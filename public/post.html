@@ -175,6 +175,10 @@
       if (liked.includes(postId)) { showToast('You already liked this post', 'info'); return; }
       try {
         const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error(res.status === 502 || res.status === 503 ? 'Server is waking up — try again in a few seconds' : `Server error (${res.status})`);
+        }
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Could not like post');
         document.getElementById('likeCount').textContent = data.likes;

@@ -20,6 +20,8 @@ const adSchema = new mongoose.Schema({
   linkUrl: { type: String },
   position: { type: String, enum: ['top', 'middle', 'bottom', 'sidebar'], default: 'top' },
   isActive: { type: Boolean, default: true },
+  approvalStatus: { type: String, enum: ['approved', 'pending'], default: 'approved' },
+  createdBy: { type: String, default: '' },
   clicks: { type: Number, default: 0 },
   impressions: { type: Number, default: 0 },
 }, { timestamps: true });
