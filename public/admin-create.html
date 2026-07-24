@@ -59,6 +59,21 @@
                 <input class="form-input" id="aiTone" placeholder="e.g. Professional and engaging" />
               </div>
             </div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">Or paste a link to research & write about</label>
+                <input class="form-input" id="aiSourceUrl" placeholder="https://example.com/product-page" />
+                <div class="form-hint">Leave the topic blank and just paste a link — Mica will read the page and write an article about it.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Article Length</label>
+                <select class="form-input" id="aiLength">
+                  <option value="long" selected>Long (~1000 words)</option>
+                  <option value="medium">Medium (~700 words)</option>
+                  <option value="short">Short (~450 words)</option>
+                </select>
+              </div>
+            </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn btn-primary btn-sm" onclick="aiGeneratePost()" id="aiGenBtn">✨ Generate Full Post</button>
               <button class="btn btn-ghost btn-sm" onclick="aiImprovePost()">🔄 Improve Current Post</button>
@@ -239,14 +254,16 @@
 
   async function aiGeneratePost() {
     const topic = document.getElementById('aiTopic').value.trim();
+    const sourceUrl = document.getElementById('aiSourceUrl').value.trim();
     const tone = document.getElementById('aiTone').value.trim();
     const category = document.getElementById('postCategory').value.trim();
-    if (!topic) { showToast('Enter a topic first', 'error'); return; }
+    const length = document.getElementById('aiLength').value;
+    if (!topic && !sourceUrl) { showToast('Enter a topic or paste a link first', 'error'); return; }
     const btn = document.getElementById('aiGenBtn');
     btn.disabled = true;
     document.getElementById('aiProgress').style.display = '';
     try {
-      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category }) });
+      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category, length, sourceUrl }) });
       const post = data.postData;
       document.getElementById('postTitle').value = post.title || '';
       document.getElementById('postContent').innerHTML = post.content || '';
@@ -254,7 +271,11 @@
       document.getElementById('seoTitle').value = post.seoTitle || '';
       document.getElementById('seoDesc').value = post.seoDescription || '';
       if (post.tags) document.getElementById('postTags').value = post.tags.join(', ');
-      showToast('Post generated! Review before publishing.', 'success');
+      showToast('Article generated! Review before publishing.', 'success');
+      if (sourceUrl && !document.getElementById('postImage').value) {
+        showToast('Generating a matching image…', 'info');
+        aiGenImage();
+      }
     } catch (err) { showToast(err.message, 'error'); }
     finally { btn.disabled = false; document.getElementById('aiProgress').style.display = 'none'; }
   }

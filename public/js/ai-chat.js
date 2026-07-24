@@ -206,12 +206,16 @@ class MicaAI {
     return this.plainChat(userInput); // fallback safety net
   }
 
-  async doGeneratePost(topic) {
+  async doGeneratePost(input) {
     this.showTyping();
+    const isUrl = /^https?:\/\/\S+$/i.test(input.trim());
     try {
+      const body = isUrl
+        ? { sourceUrl: input.trim(), category: 'General', length: 'long' }
+        : { topic: input, category: 'General', length: 'long' };
       const res = await fetch('/api/ai/generate-post', {
         method: 'POST', headers: this.authHeaders(),
-        body: JSON.stringify({ topic, category: 'General' })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       this.removeTyping();
@@ -223,8 +227,23 @@ class MicaAI {
         body: JSON.stringify({ ...p, status: 'draft', aiGenerated: true })
       });
       const created = await createRes.json();
-      if (!createRes.ok) { this.appendMessage('ai', `✅ Post written, but saving as a draft failed: ${created.error || 'unknown error'}<br><br><strong>${p.title}</strong><br>${p.excerpt}`); return; }
-      this.appendMessage('ai', `✅ Draft created: <strong>${p.title}</strong><br><br>${p.excerpt}<br><br><a href="/admin-create.html?id=${created._id}" style="color:#2563eb;font-weight:600">Open to review & publish →</a>`);
+      if (!createRes.ok) { this.appendMessage('ai', `✅ Article written, but saving as a draft failed: ${created.error || 'unknown error'}<br><br><strong>${p.title}</strong><br>${p.excerpt}`); return; }
+
+      let imageNote = '';
+      if (isUrl) {
+        this.appendMessage('ai', `✅ Article drafted: <strong>${p.title}</strong><br><br>${p.excerpt}<br><br>Generating a matching image…`);
+        this.showTyping();
+        try {
+          const imgRes = await fetch('/api/ai/generate-image', {
+            method: 'POST', headers: this.authHeaders(),
+            body: JSON.stringify({ prompt: p.title, postId: created._id, context: p.excerpt })
+          });
+          const imgData = await imgRes.json();
+          this.removeTyping();
+          imageNote = imgData.imageUrl ? `<br><br>🖼️ Featured image added.` : `<br><br>(Couldn't generate an image: ${imgData.error || 'unknown error'})`;
+        } catch { this.removeTyping(); imageNote = `<br><br>(Image generation failed)`; }
+      }
+      this.appendMessage('ai', `${isUrl ? '' : `✅ Draft created: <strong>${p.title}</strong><br><br>${p.excerpt}`}${imageNote}<br><br><a href="/admin-create.html?id=${created._id}" style="color:#2563eb;font-weight:600">Open to review & publish →</a>`);
     } catch (err) {
       this.removeTyping();
       this.appendMessage('ai', '❌ Connection error while generating the post.');
@@ -314,7 +333,7 @@ class MicaAI {
     }
 
     const prompts = {
-      'generate-post': 'What topic would you like the post to be about? Just type it below.',
+      'generate-post': "What topic would you like the article to be about? Or paste a product/article link and I'll research it and write about it (with a matching image).",
       'reedit-post': 'Enter the Post ID, optionally followed by instructions — e.g. "64f2a1c9 : make it more concise".',
       'generate-image': 'Describe the image you want. I\'ll generate it and give you a URL to use.',
       'reply-comments': 'I\'ll auto-generate replies for all approved comments awaiting a reply. Type "go ahead" to confirm.',

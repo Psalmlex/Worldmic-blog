@@ -148,24 +148,71 @@ function parseTaggedResponse(raw, keys) {
   return result;
 }
 
+// ─── Fetch and extract readable text from a URL (for "write about this product/page") ──
+async function fetchUrlContent(url) {
+  try {
+    const response = await axios.get(url, {
+      timeout: 10000,
+      maxRedirects: 5,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WorldMicBot/1.0; +https://worldmic-blog.onrender.com)' },
+      responseType: 'text',
+    });
+    let html = response.data;
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const pageTitle = titleMatch ? titleMatch[1].trim() : '';
+
+    // Strip script/style/nav/footer/header blocks, then all remaining tags
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+               .replace(/<style[\s\S]*?<\/style>/gi, '')
+               .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+               .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+               .replace(/<header[\s\S]*?<\/header>/gi, '');
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+                      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+
+    if (!text || text.length < 50) throw new Error('Could not extract readable content from that page');
+    return { title: pageTitle, text: text.substring(0, 6000) };
+  } catch (err) {
+    if (err.code === 'ECONNABORTED') throw new Error('That page took too long to respond');
+    if (err.response) throw new Error(`That page returned an error (${err.response.status})`);
+    throw new Error('Could not fetch that URL — it may be blocking automated requests');
+  }
+}
+
+const WORD_TARGETS = { short: '400-500', medium: '700-800', long: '1000-1200' };
+
 // ─── Generate blog post content ───────────────────────────────────────────────
-async function generatePost(topic, tone = '', category = 'General') {
+// topic: subject, OR leave blank and pass sourceUrl to write about a fetched page/product
+// length: 'short' | 'medium' | 'long' (default 'long' — full articles, ~1000 words)
+async function generatePost(topic, tone = '', category = 'General', options = {}) {
+  const { length = 'long', sourceUrl = '' } = options;
+  const wordTarget = WORD_TARGETS[length] || WORD_TARGETS.long;
   const toneInstruction = tone ? `Write in this personal tone/style: ${tone}` : 'Write in a professional, engaging blog tone.';
-  const system = `You are a world-class blog writer for World Mic, a multi-category blog platform. ${toneInstruction}
-Write SEO-friendly, engaging, well-structured HTML content with proper headings (h2, h3), paragraphs, and lists where appropriate.
+
+  let sourceContext = '';
+  let effectiveTopic = topic;
+  if (sourceUrl) {
+    const fetched = await fetchUrlContent(sourceUrl);
+    effectiveTopic = topic || fetched.title || 'the linked page';
+    sourceContext = `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
+  }
+
+  const system = `You are a world-class article writer for World Mic, a multi-category blog platform. ${toneInstruction}
+Write a full-length, in-depth ARTICLE — not a short blog post. Target length: approximately ${wordTarget} words.
+Write SEO-friendly, engaging, well-structured HTML content with proper headings (h2, h3), multiple developed paragraphs, and lists where appropriate. Cover the topic thoroughly: background/context, key details, implications or practical takeaways, and a conclusion.
 
 Respond using EXACTLY this tagged format, with no other text before, between, or after the tags. Do not use JSON. Do not wrap anything in markdown code fences:
 
-[TITLE]A compelling, professional post title (no quotation marks, no curly braces)[/TITLE]
+[TITLE]A compelling, professional title (no quotation marks, no curly braces)[/TITLE]
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
 [SEOTITLE]An SEO-optimized title, under 60 characters[/SEOTITLE]
 [SEODESCRIPTION]An SEO meta description, under 160 characters[/SEODESCRIPTION]
 [TAGS]tag one, tag two, tag three[/TAGS]
 [CONTENT]
-Full HTML article body here, using <h2>, <h3>, <p>, <ul>/<li> as needed.
+Full HTML article body here, using <h2>, <h3>, <p>, <ul>/<li> as needed. Aim for ${wordTarget} words.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Write a comprehensive blog post about: ${topic}. Category: ${category}`, 2500);
+  const result = await callAI(system, `Write a comprehensive, in-depth article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 3500);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
@@ -352,4 +399,4 @@ async function generateFeaturedImage(topic, contextText = '') {
   return { ...result, promptUsed: craftedPrompt };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage };
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent };
