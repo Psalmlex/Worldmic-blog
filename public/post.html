@@ -38,12 +38,15 @@
   <script>
     const postId = new URLSearchParams(location.search).get('id');
 
+    let currentPostExcerpt = '';
+
     async function loadPost() {
       if (!postId) { location.href = '/'; return; }
       const container = document.getElementById('postContent');
       container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
       try {
         const post = await apiFetch(`/posts/${postId}`);
+        currentPostExcerpt = post.excerpt || post.seoDescription || '';
         document.title = `${post.title} — World Mic`;
         document.querySelector('meta[name="description"]')?.remove();
         const meta = document.createElement('meta');
@@ -185,12 +188,32 @@
       }
     }
 
-    function sharePost(platform) {
-      const url = encodeURIComponent(location.href);
-      const title = encodeURIComponent(document.title);
-      if (platform === 'twitter') window.open(`https://twitter.com/intent/tweet?url=${url}&text=${title}`, '_blank');
-      else if (platform === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-      else { navigator.clipboard.writeText(location.href); showToast('Link copied!', 'success'); }
+    async function sharePost(platform) {
+      const url = location.href;
+      const title = document.title.replace(' — World Mic', '');
+      const text = currentPostExcerpt || title;
+
+      if (platform === 'copy') {
+        navigator.clipboard.writeText(url);
+        showToast('Link copied!', 'success');
+        return;
+      }
+
+      // Native share sheet: the reliable way to hand off title+text+link into whichever app the person picks
+      if (navigator.share) {
+        try {
+          await navigator.share({ title, text, url });
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return; // person cancelled the share sheet — do nothing
+          // otherwise fall through to the web intent below
+        }
+      }
+
+      const encodedUrl = encodeURIComponent(url);
+      const encodedText = encodeURIComponent(text);
+      if (platform === 'twitter') window.open(`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`, '_blank');
+      else if (platform === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`, '_blank');
     }
 
     document.addEventListener('DOMContentLoaded', () => { loadPost(); loadCategories(); });

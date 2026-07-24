@@ -12,4 +12,13 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// Use after authMiddleware — blocks non-admin roles (e.g. editors) from admin-only routes
+const requireAdmin = (req, res, next) => {
+  if (req.admin?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
 module.exports = authMiddleware;
+module.exports.requireAdmin = requireAdmin;

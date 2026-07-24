@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Staff Accounts</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="openAddStaff()">+ Add Staff</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="form-card" style="margin-bottom:20px">
+        <div class="form-card-title">Roles</div>
+        <div style="font-size:0.85rem;color:#555;line-height:1.7">
+          <strong>Admin</strong> — full access, including Settings and API keys.<br>
+          <strong>Editor</strong> — can write and manage posts, comments, ads, and use AI tools. Cannot see Settings or API keys.
+        </div>
+      </div>
+
+      <div id="addStaffCard" class="form-card" style="display:none;margin-bottom:20px">
+        <div class="form-card-title">Add Staff Account</div>
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" id="newUsername" placeholder="e.g. john" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Display Name (optional)</label>
+          <input class="form-input" id="newName" placeholder="e.g. John Doe" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" id="newPassword" type="password" placeholder="At least 6 characters" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select class="form-input" id="newRole">
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary btn-sm" onclick="createStaff()">Create Account</button>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('addStaffCard').style.display='none'">Cancel</button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header"><h2>Staff</h2><span id="staffCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Added</th><th>Actions</th></tr></thead>
+            <tbody id="staffBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let allStaff = [];
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    if (!requireAdminRole()) return;
+    renderAdminLayout('/admin-staff.html');
+    loadStaff();
+  });
+
+  function openAddStaff() {
+    document.getElementById('addStaffCard').style.display = '';
+    document.getElementById('newUsername').focus();
+  }
+
+  async function loadStaff() {
+    try {
+      allStaff = await adminFetch('/auth/staff');
+      renderTable();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderTable() {
+    document.getElementById('staffCount').textContent = `${allStaff.length} account${allStaff.length !== 1 ? 's' : ''}`;
+    const body = document.getElementById('staffBody');
+    if (!allStaff.length) { body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:#9a9aaa">No staff accounts yet — the env admin login still works as usual.</td></tr>`; return; }
+    body.innerHTML = allStaff.map(s => `
+      <tr>
+        <td>${s.username}</td>
+        <td>${s.name || '—'}</td>
+        <td><span class="badge badge-${s.role === 'admin' ? 'approved' : 'pending'}">${s.role}</span></td>
+        <td style="font-size:0.82rem;color:#555">${fmtDate(s.createdAt)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteStaff('${s._id}','${s.username}')">✕</button></td>
+      </tr>`).join('');
+  }
+
+  async function createStaff() {
+    const username = document.getElementById('newUsername').value.trim();
+    const name = document.getElementById('newName').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const role = document.getElementById('newRole').value;
+    if (!username || !password) { showToast('Username and password are required', 'error'); return; }
+    try {
+      await adminFetch('/auth/staff', { method: 'POST', body: JSON.stringify({ username, name, password, role }) });
+      showToast('Staff account created', 'success');
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newName').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('addStaffCard').style.display = 'none';
+      loadStaff();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteStaff(id, username) {
+    if (!confirmAction(`Remove staff account "${username}"? They will lose access immediately.`)) return;
+    try {
+      await adminFetch(`/auth/staff/${id}`, { method: 'DELETE' });
+      showToast('Staff account removed', 'success');
+      loadStaff();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

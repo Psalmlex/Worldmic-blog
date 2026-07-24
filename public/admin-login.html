@@ -57,8 +57,7 @@
 
   <script>
     // Redirect if already logged in
-   // if (localStorage.getItem('wm_token')) location.href = '/admin-dashboard.html';
-
+// if (localStorage.getItem('wm_token')) location.href = '/admin-dashboard.html';
     document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
     document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 
@@ -80,6 +79,7 @@
         if (!res.ok) { showError(data.error || 'Login failed'); return; }
         localStorage.setItem('wm_token', data.token);
         localStorage.setItem('wm_admin', username);
+        localStorage.setItem('wm_role', data.role || 'admin');
         location.href = '/admin-dashboard.html';
       } catch { showError('Connection error. Is the server running?'); }
       finally { btn.disabled = false; btn.textContent = 'Sign In →'; }

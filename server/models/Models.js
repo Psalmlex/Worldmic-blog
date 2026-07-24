@@ -42,9 +42,25 @@ const aiLogSchema = new mongoose.Schema({
   approved: { type: Boolean, default: false },
 }, { timestamps: true });
 
+// Subscriber Model (Newsletter)
+const subscriberSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  status: { type: String, enum: ['active', 'unsubscribed'], default: 'active' },
+}, { timestamps: true });
+
+// Staff User Model (Admin panel accounts beyond the single env-based super-admin)
+const staffUserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ['admin', 'editor'], default: 'editor' },
+  name: { type: String, default: '' },
+}, { timestamps: true });
+
 module.exports = {
   Comment: mongoose.model('Comment', commentSchema),
   Ad: mongoose.model('Ad', adSchema),
   Settings: mongoose.model('Settings', settingsSchema),
   AILog: mongoose.model('AILog', aiLogSchema),
+  Subscriber: mongoose.model('Subscriber', subscriberSchema),
+  StaffUser: mongoose.model('StaffUser', staffUserSchema),
 };
