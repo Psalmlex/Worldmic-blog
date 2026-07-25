@@ -19,6 +19,10 @@ async function getTransporter() {
   return nodemailer.createTransport({
     host, port, secure: port === 465,
     auth: { user, pass },
+    family: 4, // force IPv4 — avoids connection timeouts on hosts with broken/slow IPv6 routing to Gmail
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
   });
 }
 

@@ -16,7 +16,7 @@
 
   <div class="category-nav">
     <div class="category-nav-inner" id="categoryNav">
-      <div class="cat-pill active" data-cat="">All</div>
+      <div class="cat-pill active" data-cat="" id="allCatPill">All</div>
     </div>
   </div>
 
@@ -127,6 +127,7 @@
     function changePage(p) { currentPage = p; loadPosts(p, currentCategory); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
     async function loadCategories() {
+      document.getElementById('allCatPill').addEventListener('click', () => filterByCategory('', document.getElementById('allCatPill')));
       try {
         const cats = await apiFetch('/posts/meta/categories');
         const nav = document.getElementById('categoryNav');
