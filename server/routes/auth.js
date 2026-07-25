@@ -116,6 +116,7 @@ router.post('/invite/:inquiryId', auth, auth.requireAdmin, async (req, res) => {
 
     const { sendEmail } = require('../services/emailService');
     const signupUrl = `${req.protocol}://${req.get('host')}/writer-signup.html?token=${token}`;
+    console.log(`[invite] Sending invite email to ${inquiry.email}...`);
     await sendEmail(inquiry.email, "You're invited to write for World Mic!", `
       <div style="font-family:sans-serif;line-height:1.6">
         <h2>Welcome to World Mic, ${inquiry.name}!</h2>
@@ -124,9 +125,13 @@ router.post('/invite/:inquiryId', auth, auth.requireAdmin, async (req, res) => {
         <p><a href="${signupUrl}" style="background:#1a73e8;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Set Up My Account</a></p>
         <p style="color:#888;font-size:0.85rem">Or copy this link: ${signupUrl}</p>
       </div>`);
+    console.log(`[invite] Email sent successfully to ${inquiry.email}`);
 
     res.json({ message: `Invite sent to ${inquiry.email}` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[invite] Failed to send invite email:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Validate an invite token (used by the signup page to show who's signing up)

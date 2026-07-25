@@ -32,7 +32,14 @@ async function getFromAddress() {
 async function sendEmail(to, subject, html) {
   const transporter = await getTransporter();
   const from = await getFromAddress();
-  return transporter.sendMail({ from, to, subject, html });
+  try {
+    const info = await transporter.sendMail({ from, to, subject, html });
+    console.log(`[email] Sent to ${to} — messageId: ${info.messageId}`);
+    return info;
+  } catch (err) {
+    console.error(`[email] Failed to send to ${to}:`, err.message);
+    throw err;
+  }
 }
 
 // Send the same email to many subscribers, one at a time (safest for typical SMTP rate limits).
