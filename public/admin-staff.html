@@ -38,6 +38,10 @@
           <input class="form-input" id="newName" placeholder="e.g. John Doe" />
         </div>
         <div class="form-group">
+          <label class="form-label">Email <span style="font-weight:400;color:#9a9aaa">(needed for password reset)</span></label>
+          <input class="form-input" id="newEmail" type="email" placeholder="john@email.com" />
+        </div>
+        <div class="form-group">
           <label class="form-label">Password</label>
           <input class="form-input" id="newPassword" type="password" placeholder="At least 6 characters" autocomplete="new-password" />
         </div>
@@ -112,14 +116,16 @@
   async function createStaff() {
     const username = document.getElementById('newUsername').value.trim();
     const name = document.getElementById('newName').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
     const password = document.getElementById('newPassword').value;
     const role = document.getElementById('newRole').value;
     if (!username || !password) { showToast('Username and password are required', 'error'); return; }
     try {
-      await adminFetch('/auth/staff', { method: 'POST', body: JSON.stringify({ username, name, password, role }) });
+      await adminFetch('/auth/staff', { method: 'POST', body: JSON.stringify({ username, name, email, password, role }) });
       showToast('Staff account created', 'success');
       document.getElementById('newUsername').value = '';
       document.getElementById('newName').value = '';
+      document.getElementById('newEmail').value = '';
       document.getElementById('newPassword').value = '';
       document.getElementById('addStaffCard').style.display = 'none';
       loadStaff();

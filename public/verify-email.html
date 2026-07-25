@@ -10,14 +10,14 @@
 <body>
   <header class="site-header" id="site-header"></header>
 
-  <div class="main-layout" style="padding-top:32px;max-width:420px;margin:0 auto;padding-left:24px;padding-right:24px">
+  <div class="main-layout" style="display:block;padding-top:32px;max-width:420px;margin:0 auto;padding-left:24px;padding-right:24px">
     <main style="width:100%">
       <div style="background:var(--bg-white);padding:28px;border-radius:12px;border:1px solid var(--border);text-align:center">
         <h1 style="font-size:1.4rem;margin-bottom:6px">Verify Your Email</h1>
         <p style="color:var(--text-muted);margin-bottom:24px">Enter the 6-digit code we sent to your email.</p>
 
         <form id="verifyForm" style="display:flex;flex-direction:column;gap:16px">
-          <input class="form-input" id="codeInput" placeholder="123456" maxlength="6" style="text-align:center;font-size:1.5rem;letter-spacing:8px" inputmode="numeric" required />
+          <input class="form-input" id="codeInput" placeholder="123456" maxlength="6" style="text-align:center;font-size:2rem;letter-spacing:10px;width:100%;padding:18px 10px;box-sizing:border-box" inputmode="numeric" required />
           <button type="submit" class="btn btn-primary" id="verifyBtn">Verify</button>
         </form>
         <div id="verifyResult" style="font-size:0.9rem;margin-top:14px"></div>

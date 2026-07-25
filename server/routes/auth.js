@@ -64,7 +64,7 @@ router.get('/staff', auth, auth.requireAdmin, async (req, res) => {
 
 router.post('/staff', auth, auth.requireAdmin, async (req, res) => {
   try {
-    const { username, password, role, name } = req.body;
+    const { username, password, role, name, email } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
     const cleanUsername = username.toLowerCase().trim();
@@ -73,7 +73,7 @@ router.post('/staff', auth, auth.requireAdmin, async (req, res) => {
     const existing = await StaffUser.findOne({ username: cleanUsername });
     if (existing) return res.status(400).json({ error: 'Username already taken' });
     const passwordHash = await bcrypt.hash(password, 10);
-    const staff = await StaffUser.create({ username: cleanUsername, passwordHash, role: role === 'admin' ? 'admin' : 'editor', name: name || '', emailVerified: true });
+    const staff = await StaffUser.create({ username: cleanUsername, passwordHash, role: role === 'admin' ? 'admin' : 'editor', name: name || '', email: email || '', emailVerified: true });
     res.status(201).json({ _id: staff._id, username: staff.username, role: staff.role, name: staff.name });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -221,6 +221,48 @@ router.post('/resend-code', async (req, res) => {
         <p style="color:#888;font-size:0.85rem">This code expires in 30 minutes.</p>
       </div>`);
     res.json({ message: 'New code sent!' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ======= FORGOT / RESET PASSWORD (staff accounts only — not the .env super-admin) =======
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'Enter your username' });
+    const staff = await StaffUser.findOne({ username: username.toLowerCase().trim() });
+    if (!staff) return res.status(404).json({ error: 'No account found with that username' });
+    if (!staff.email) return res.status(400).json({ error: "This account has no email on file — ask an admin to reset your password instead" });
+
+    const code = genCode();
+    staff.verificationCode = code;
+    staff.verificationCodeExpires = new Date(Date.now() + 30 * 60 * 1000);
+    await staff.save();
+
+    const { sendEmail } = require('../services/emailService');
+    await sendEmail(staff.email, 'Reset your World Mic password', `
+      <div style="font-family:sans-serif;line-height:1.6">
+        <h2>Password Reset</h2>
+        <p>Use this code to reset your password:</p>
+        <p style="font-size:32px;font-weight:700;letter-spacing:4px">${code}</p>
+        <p style="color:#888;font-size:0.85rem">This code expires in 30 minutes. If you didn't request this, you can ignore this email.</p>
+      </div>`);
+    res.json({ message: `A reset code was sent to ${staff.email.replace(/(.{2}).+(@.+)/, '$1***$2')}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { username, code, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const staff = await StaffUser.findOne({ username: (username || '').toLowerCase().trim() });
+    if (!staff) return res.status(404).json({ error: 'Account not found' });
+    if (!staff.verificationCode || staff.verificationCode !== String(code).trim()) return res.status(400).json({ error: 'Incorrect code' });
+    if (staff.verificationCodeExpires && staff.verificationCodeExpires < new Date()) return res.status(400).json({ error: 'Code expired — request a new one' });
+
+    staff.passwordHash = await bcrypt.hash(newPassword, 10);
+    staff.verificationCode = '';
+    await staff.save();
+    res.json({ message: 'Password updated! You can now log in.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
