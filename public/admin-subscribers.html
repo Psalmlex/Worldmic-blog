@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscribers — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Newsletter Subscribers</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="exportSubscribers()">⬇️ Export CSV</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="table-card">
+        <div class="table-header"><h2>Subscribers</h2><span id="subCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Email</th><th>Status</th><th>Subscribed</th><th>Actions</th></tr></thead>
+            <tbody id="subsBody"><tr><td colspan="4" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let allSubs = [];
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-subscribers.html');
+    loadSubscribers();
+  });
+
+  async function loadSubscribers() {
+    try {
+      allSubs = await adminFetch('/subscribers/admin/all');
+      renderTable();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderTable() {
+    document.getElementById('subCount').textContent = `${allSubs.length} subscriber${allSubs.length !== 1 ? 's' : ''}`;
+    const body = document.getElementById('subsBody');
+    if (!allSubs.length) { body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#9a9aaa">No subscribers yet.</td></tr>`; return; }
+    body.innerHTML = allSubs.map(s => `
+      <tr>
+        <td>${s.email}</td>
+        <td><span class="badge badge-${s.status === 'active' ? 'approved' : 'pending'}">${s.status}</span></td>
+        <td style="font-size:0.82rem;color:#555">${fmtDate(s.createdAt, true)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteSub('${s._id}')">✕</button></td>
+      </tr>`).join('');
+  }
+
+  async function deleteSub(id) {
+    if (!confirmAction('Remove this subscriber?')) return;
+    try {
+      await adminFetch(`/subscribers/${id}`, { method: 'DELETE' });
+      showToast('Subscriber removed', 'success');
+      loadSubscribers();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function exportSubscribers() {
+    if (!allSubs.length) { showToast('No subscribers to export', 'info'); return; }
+    const rows = ['email,status,subscribed_at', ...allSubs.map(s => `${s.email},${s.status},${new Date(s.createdAt).toISOString()}`)];
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'worldmic-subscribers.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

@@ -60,10 +60,12 @@ router.get('/meta/categories', async (req, res) => {
   }
 });
 
-// Admin: Get all posts
+// Admin: Get all posts (editors see only their own; admins see everything)
 router.get('/admin/all', auth, async (req, res) => {
   try {
-    const posts = await Post.find().sort({ createdAt: -1 });
+    const isAdmin = req.admin?.role === 'admin';
+    const filter = isAdmin ? {} : { authorUsername: req.admin?.username };
+    const posts = await Post.find(filter).sort({ createdAt: -1 });
     res.json(posts);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -73,7 +75,17 @@ router.get('/admin/all', auth, async (req, res) => {
 // Admin: Create post
 router.post('/', auth, async (req, res) => {
   try {
-    const post = new Post(req.body);
+    let authorDisplay = req.body.author;
+    if (!authorDisplay && req.admin?.username) {
+      if (req.admin.role === 'admin') {
+        authorDisplay = 'World Mic';
+      } else {
+        const { StaffUser } = require('../models/Models');
+        const staff = await StaffUser.findOne({ username: req.admin.username });
+        authorDisplay = staff?.name || req.admin.username;
+      }
+    }
+    const post = new Post({ ...req.body, author: authorDisplay || 'World Mic', authorUsername: req.admin?.username || '' });
     await post.save();
     res.status(201).json(post);
   } catch (err) {
@@ -84,21 +96,28 @@ router.post('/', auth, async (req, res) => {
 // Admin: Update post
 router.put('/:id', auth, async (req, res) => {
   try {
+    const existing = await Post.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Post not found' });
+    if (req.admin?.role !== 'admin' && existing.authorUsername !== req.admin?.username) {
+      return res.status(403).json({ error: 'You can only edit your own posts' });
+    }
     const post = await Post.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!post) return res.status(404).json({ error: 'Post not found' });
     res.json(post);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Admin: Delete post
-// Delete post — editors can only request deletion; admins delete immediately (and approving is just deleting)
+// Admin: Delete post — editors can only request deletion of their own posts; admins delete immediately
 router.delete('/:id', auth, async (req, res) => {
   try {
+    const existing = await Post.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Post not found' });
     if (req.admin?.role !== 'admin') {
-      const post = await Post.findByIdAndUpdate(req.params.id, { deletionRequested: true, deletionRequestedBy: req.admin?.username || 'editor' }, { new: true });
-      if (!post) return res.status(404).json({ error: 'Post not found' });
+      if (existing.authorUsername !== req.admin?.username) {
+        return res.status(403).json({ error: 'You can only request deletion of your own posts' });
+      }
+      await Post.findByIdAndUpdate(req.params.id, { deletionRequested: true, deletionRequestedBy: req.admin?.username || 'editor' }, { new: true });
       return res.json({ message: 'Deletion requested — an admin needs to approve it', pending: true });
     }
     await Post.findByIdAndDelete(req.params.id);

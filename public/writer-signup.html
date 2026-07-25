@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set Up Your Account — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="main-layout" style="padding-top:32px;max-width:480px;margin:0 auto;padding-left:24px;padding-right:24px">
+    <main style="width:100%">
+      <div id="loadingState" style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
+
+      <div id="signupBox" style="display:none;background:var(--bg-white);padding:28px;border-radius:12px;border:1px solid var(--border)">
+        <h1 style="font-size:1.4rem;margin-bottom:6px">Welcome, <span id="inviteName"></span>!</h1>
+        <p style="color:var(--text-muted);margin-bottom:24px">Set up your writer account for <strong id="inviteEmail"></strong></p>
+
+        <form id="signupForm" style="display:flex;flex-direction:column;gap:16px">
+          <div class="form-group">
+            <label class="form-label">Choose a Username *</label>
+            <input class="form-input" id="suUsername" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password *</label>
+            <input class="form-input" id="suPassword" type="password" required minlength="6" autocomplete="new-password" />
+            <div class="form-hint">At least 6 characters.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Short Bio (optional)</label>
+            <textarea class="form-input" id="suBio" style="min-height:80px;resize:vertical" placeholder="Tell readers a bit about yourself…"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" id="suSubmit">Create My Account</button>
+          <div id="suResult" style="font-size:0.9rem"></div>
+        </form>
+      </div>
+
+      <div id="errorBox" style="display:none;text-align:center;padding:40px 0">
+        <h2>Link not valid</h2>
+        <p id="errorMsg" style="color:var(--text-muted);margin-top:8px"></p>
+        <a href="/" class="btn btn-secondary" style="margin-top:20px">Go Home</a>
+      </div>
+    </main>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const token = new URLSearchParams(location.search).get('token');
+
+    async function loadInvite() {
+      if (!token) { showError('No invite token provided.'); return; }
+      try {
+        const res = await fetch(`/api/auth/invite/${token}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        document.getElementById('inviteName').textContent = data.name;
+        document.getElementById('inviteEmail').textContent = data.email;
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('signupBox').style.display = '';
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    function showError(msg) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('errorBox').style.display = '';
+      document.getElementById('errorMsg').textContent = msg;
+    }
+
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('suSubmit');
+      const result = document.getElementById('suResult');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/auth/writer-signup', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            username: document.getElementById('suUsername').value.trim(),
+            password: document.getElementById('suPassword').value,
+            bio: document.getElementById('suBio').value.trim(),
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        location.href = `/verify-email.html?username=${encodeURIComponent(data.username)}`;
+      } catch (err) {
+        result.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`;
+        btn.disabled = false; btn.textContent = 'Create My Account';
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', loadInvite);
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

@@ -76,7 +76,10 @@
           body: JSON.stringify({ username, password })
         });
         const data = await res.json();
-        if (!res.ok) { showError(data.error || 'Login failed'); return; }
+        if (!res.ok) {
+          if (data.needsVerification) { location.href = `/verify-email.html?username=${encodeURIComponent(data.username)}`; return; }
+          showError(data.error || 'Login failed'); return;
+        }
         localStorage.setItem('wm_token', data.token);
         localStorage.setItem('wm_admin', username);
         localStorage.setItem('wm_role', data.role || 'admin');

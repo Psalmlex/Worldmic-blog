@@ -65,7 +65,7 @@
             <h1 class="post-title">${post.title}</h1>
             <div class="post-meta-bar">
               <span>📅 ${formatDate(post.createdAt, true)}</span>
-              <span>✍️ ${post.author || 'World Mic'}</span>
+              <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
               <span>⏱ ${readingTime(post.content)} min read</span>
               <span>👁 ${post.views} views</span>
             </div>

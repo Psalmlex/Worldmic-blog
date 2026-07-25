@@ -53,9 +53,16 @@ const subscriberSchema = new mongoose.Schema({
 // Staff User Model (Admin panel accounts beyond the single env-based super-admin)
 const staffUserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  email: { type: String, default: '' },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ['admin', 'editor'], default: 'editor' },
   name: { type: String, default: '' },
+  bio: { type: String, default: '' },
+  avatarUrl: { type: String, default: '' },
+  emailVerified: { type: Boolean, default: true }, // true for admin-created staff; false until verified for self-signup writers
+  verificationCode: { type: String, default: '' },
+  verificationCodeExpires: { type: Date },
+  followerCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
 // Inquiry Model (Join the Team + Partner/Advertise submissions)
@@ -67,6 +74,8 @@ const inquirySchema = new mongoose.Schema({
   roleInterest: { type: String, default: '' }, // team applications
   message: { type: String, required: true },
   status: { type: String, enum: ['new', 'reviewed'], default: 'new' },
+  inviteToken: { type: String, default: '' },
+  inviteStatus: { type: String, enum: ['none', 'invited', 'signed_up'], default: 'none' },
 }, { timestamps: true });
 
 module.exports = {

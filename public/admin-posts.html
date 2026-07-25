@@ -12,7 +12,7 @@
   <aside class="admin-sidebar" id="adminSidebar"></aside>
   <div class="admin-main">
     <div class="admin-topbar">
-      <div class="topbar-title">Posts</div>
+      <div class="topbar-title" id="postsPageTitle">Posts</div>
       <div class="topbar-actions">
         <input class="admin-search" type="text" id="searchPosts" placeholder="Search posts…" oninput="filterPosts()" />
         <a href="/admin-create.html" class="btn btn-primary btn-sm">+ New Post</a>
@@ -62,6 +62,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     if (!await requireAuth()) return;
     renderAdminLayout('/admin-posts.html');
+    if (localStorage.getItem('wm_role') !== 'admin') document.getElementById('postsPageTitle').textContent = 'My Posts';
     loadPosts();
     if (localStorage.getItem('wm_role') === 'admin') loadPendingDeletions();
   });

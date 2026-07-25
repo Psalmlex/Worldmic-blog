@@ -89,21 +89,22 @@
 
   async function loadStats() {
     try {
-      const [postsData, commentsData, adsData] = await Promise.all([
+      const [postsData, commentsData, subsData] = await Promise.all([
         adminFetch('/posts/admin/all'),
         adminFetch('/comments/admin/all'),
-        adminFetch('/ads/admin/all')
+        adminFetch('/subscribers/admin/all').catch(() => [])
       ]);
       const published = postsData.filter(p => p.status === 'published').length;
       const pending = commentsData.filter(c => c.status === 'pending').length;
       const totalViews = postsData.reduce((s, p) => s + p.views, 0);
-      const activeAds = adsData.filter(a => a.isActive).length;
+      const totalLikes = postsData.reduce((s, p) => s + (p.likes || 0), 0);
+      const activeSubs = subsData.filter(s => s.status === 'active').length;
 
       document.getElementById('statsGrid').innerHTML = `
         <div class="stat-card"><div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></div><div class="stat-label">Total Posts</div><div class="stat-value">${postsData.length}</div><div class="stat-change up">${published} published</div></div>
-        <div class="stat-card"><div class="stat-icon green"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></div><div class="stat-label">Total Views</div><div class="stat-value">${totalViews.toLocaleString()}</div><div class="stat-change up">All time</div></div>
+        <div class="stat-card"><div class="stat-icon green"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></div><div class="stat-label">Total Views</div><div class="stat-value">${totalViews.toLocaleString()}</div><div class="stat-change up">${totalLikes.toLocaleString()} likes</div></div>
         <div class="stat-card"><div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5c0-1.38-1.12-2.5-2.5-2.5h-15C2.12 4 1 5.12 1 6.5v11C1 18.88 2.12 20 3.5 20H19l4 4V6.5z"/></svg></div><div class="stat-label">Pending Comments</div><div class="stat-value">${pending}</div><div class="stat-change ${pending > 0 ? 'down' : 'up'}">Needs review</div></div>
-        <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><div class="stat-label">Active Ads</div><div class="stat-value">${activeAds}</div><div class="stat-change up">${adsData.length} total</div></div>`;
+        <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></div><div class="stat-label">Subscribers</div><div class="stat-value">${activeSubs}</div><div class="stat-change up"><a href="/admin-subscribers.html" style="color:inherit">View all →</a></div></div>`;
     } catch (err) { showToast('Failed to load stats: ' + err.message, 'error'); }
   }
 

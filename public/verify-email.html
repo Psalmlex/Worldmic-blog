@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify Your Email — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="main-layout" style="padding-top:32px;max-width:420px;margin:0 auto;padding-left:24px;padding-right:24px">
+    <main style="width:100%">
+      <div style="background:var(--bg-white);padding:28px;border-radius:12px;border:1px solid var(--border);text-align:center">
+        <h1 style="font-size:1.4rem;margin-bottom:6px">Verify Your Email</h1>
+        <p style="color:var(--text-muted);margin-bottom:24px">Enter the 6-digit code we sent to your email.</p>
+
+        <form id="verifyForm" style="display:flex;flex-direction:column;gap:16px">
+          <input class="form-input" id="codeInput" placeholder="123456" maxlength="6" style="text-align:center;font-size:1.5rem;letter-spacing:8px" inputmode="numeric" required />
+          <button type="submit" class="btn btn-primary" id="verifyBtn">Verify</button>
+        </form>
+        <div id="verifyResult" style="font-size:0.9rem;margin-top:14px"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="resendCode()" id="resendBtn">Resend Code</button>
+      </div>
+    </main>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const username = new URLSearchParams(location.search).get('username');
+
+    document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('verifyBtn');
+      const result = document.getElementById('verifyResult');
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        const res = await fetch('/api/auth/verify-email', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, code: document.getElementById('codeInput').value.trim() })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        result.innerHTML = `<span style="color:var(--success)">✅ ${data.message}</span>`;
+        setTimeout(() => location.href = '/admin-login.html', 1500);
+      } catch (err) {
+        result.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Verify';
+      }
+    });
+
+    async function resendCode() {
+      const btn = document.getElementById('resendBtn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/auth/resend-code', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        document.getElementById('verifyResult').innerHTML = res.ok ? `<span style="color:var(--success)">✅ ${data.message}</span>` : `<span style="color:var(--danger)">❌ ${data.error}</span>`;
+      } catch { document.getElementById('verifyResult').textContent = 'Failed to resend.'; }
+      finally { btn.disabled = false; }
+    }
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

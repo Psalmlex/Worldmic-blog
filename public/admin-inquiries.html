@@ -72,11 +72,23 @@
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <a href="mailto:${i.email}" class="btn btn-ghost btn-sm">Reply</a>
+            ${i.type === 'team' && i.inviteStatus === 'none' ? `<button class="btn btn-sm" style="background:#dbeafe;color:#1a5eb8" onclick="inviteWriter('${i._id}')">✉️ Approve & Invite</button>` : ''}
+            ${i.type === 'team' && i.inviteStatus === 'invited' ? `<span class="badge badge-pending">Invite Sent</span>` : ''}
+            ${i.type === 'team' && i.inviteStatus === 'signed_up' ? `<span class="badge badge-approved">Signed Up</span>` : ''}
             ${i.status === 'new' ? `<button class="btn btn-sm" style="background:#dcfce7;color:#16a34a" onclick="markReviewed('${i._id}')">Mark Reviewed</button>` : ''}
             <button class="btn btn-danger btn-sm" onclick="removeInquiry('${i._id}')">✕</button>
           </div>
         </div>
       </div>`).join('');
+  }
+
+  async function inviteWriter(id) {
+    if (!confirmAction('Send this person an invite email to set up their writer account?')) return;
+    try {
+      const data = await adminFetch(`/auth/invite/${id}`, { method: 'POST' });
+      showToast(data.message, 'success');
+      loadInquiries();
+    } catch (err) { showToast(err.message, 'error'); }
   }
 
   async function markReviewed(id) {

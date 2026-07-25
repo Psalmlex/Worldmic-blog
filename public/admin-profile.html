@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Profile — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">My Profile</div>
+      <div class="topbar-actions"><a id="viewPublicLink" href="#" target="_blank" class="btn btn-ghost btn-sm">View Public Page →</a><div class="admin-avatar" id="adminAvatar">A</div></div>
+    </div>
+    <div class="admin-content">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:24px" id="statsRow"></div>
+
+      <div class="form-card" style="max-width:600px">
+        <div class="form-card-title">Edit Profile</div>
+        <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" id="pName" /></div>
+        <div class="form-group"><label class="form-label">Avatar Image URL</label><input class="form-input" id="pAvatar" placeholder="https://…" /></div>
+        <div class="form-group"><label class="form-label">Bio</label><textarea class="form-input" id="pBio" style="min-height:100px;resize:vertical"></textarea></div>
+        <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  const myUsername = localStorage.getItem('wm_admin');
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-profile.html');
+    document.getElementById('viewPublicLink').href = `/author.html?u=${myUsername}`;
+    loadProfile();
+  });
+
+  async function loadProfile() {
+    try {
+      const author = await apiFetchPublic(`/authors/${myUsername}`);
+      document.getElementById('pName').value = author.name || '';
+      document.getElementById('pBio').value = author.bio || '';
+      document.getElementById('pAvatar').value = author.avatarUrl || '';
+      document.getElementById('statsRow').innerHTML = `
+        ${statCard(author.postCount, 'Posts')}
+        ${statCard(author.followerCount, 'Followers')}
+        ${statCard(author.totalLikes, 'Total Likes')}
+        ${statCard(author.totalViews, 'Total Views')}`;
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function statCard(value, label) {
+    return `<div style="background:#fff;border-radius:10px;padding:16px 20px;min-width:110px;border:1px solid #eee">
+      <div style="font-size:1.6rem;font-weight:700;color:#1a1a2e">${value}</div>
+      <div style="font-size:0.8rem;color:#7a7a8a">${label}</div>
+    </div>`;
+  }
+
+  async function apiFetchPublic(path) {
+    const res = await fetch(`/api${path}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  async function saveProfile() {
+    try {
+      await adminFetch('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: document.getElementById('pName').value.trim(),
+          bio: document.getElementById('pBio').value.trim(),
+          avatarUrl: document.getElementById('pAvatar').value.trim(),
+        })
+      });
+      showToast('Profile saved!', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

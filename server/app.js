@@ -14,11 +14,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Routes
-app.use('/api/auth',   require('./routes/auth'));
-app.use('/api/posts',  require('./routes/posts'));
-app.use('/api',        require('./routes/data'));
-app.use('/api/ai',     require('./routes/ai'));
-app.use('/api/upload', require('./routes/upload'));
+app.use('/api/auth',    require('./routes/auth'));
+app.use('/api/posts',   require('./routes/posts'));
+app.use('/api/authors', require('./routes/authors'));
+app.use('/api',         require('./routes/data'));
+app.use('/api/ai',      require('./routes/ai'));
+app.use('/api/upload',  require('./routes/upload'));
 
 // Seed default settings
 async function seedSettings() {

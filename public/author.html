@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Writer Profile — World Mic</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <div class="main-layout" style="padding-top:32px;max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px">
+    <main style="width:100%" id="profileRoot">
+      <div class="loading"><div class="spinner"></div></div>
+    </main>
+  </div>
+
+  <footer id="site-footer" class="site-footer"></footer>
+  <script src="/js/main.js"></script>
+  <script>
+    const username = new URLSearchParams(location.search).get('u');
+
+    function getFollowedAuthors() {
+      try { return JSON.parse(localStorage.getItem('wm_followed') || '[]'); } catch { return []; }
+    }
+
+    async function loadProfile() {
+      const root = document.getElementById('profileRoot');
+      if (!username) { root.innerHTML = `<div class="empty-state"><h3>Writer not found</h3></div>`; return; }
+      try {
+        const author = await apiFetch(`/authors/${username}`);
+        document.title = `${author.name} — World Mic`;
+        const isFollowing = getFollowedAuthors().includes(author.username);
+
+        root.innerHTML = `
+          <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:24px;background:var(--bg-white);border-radius:12px;border:1px solid var(--border);margin-bottom:28px">
+            <div style="width:76px;height:76px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;flex-shrink:0;overflow:hidden">
+              ${author.avatarUrl ? `<img src="${author.avatarUrl}" style="width:100%;height:100%;object-fit:cover" />` : author.name.charAt(0).toUpperCase()}
+            </div>
+            <div style="flex:1;min-width:200px">
+              <h1 style="font-size:1.5rem;margin-bottom:4px">${author.name}</h1>
+              ${author.bio ? `<p style="color:var(--text-muted);margin-bottom:10px">${author.bio}</p>` : ''}
+              <div style="display:flex;gap:18px;font-size:0.85rem;color:var(--text-muted)">
+                <span><strong style="color:var(--text-dark)">${author.postCount}</strong> posts</span>
+                <span><strong style="color:var(--text-dark)" id="followerCountText">${author.followerCount}</strong> followers</span>
+                <span><strong style="color:var(--text-dark)">${author.totalLikes}</strong> likes</span>
+              </div>
+            </div>
+            <button class="btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}" id="followBtn" onclick="toggleFollow('${author.username}')">${isFollowing ? '✓ Following' : '+ Follow'}</button>
+          </div>
+
+          <h2 class="section-title" style="margin-bottom:16px">Posts by ${author.name}</h2>
+          <div class="posts-grid" id="authorPosts">
+            ${author.posts.length ? author.posts.map(postCardHTML).join('') : `<div class="empty-state full-width"><h3>No posts yet</h3></div>`}
+          </div>`;
+      } catch (err) {
+        root.innerHTML = `<div class="empty-state"><h3>Writer not found</h3><p>${err.message}</p></div>`;
+      }
+    }
+
+    async function toggleFollow(uname) {
+      const followed = getFollowedAuthors();
+      const btn = document.getElementById('followBtn');
+      const countEl = document.getElementById('followerCountText');
+      const isFollowing = followed.includes(uname);
+      try {
+        const res = await fetch(`/api/authors/${uname}/${isFollowing ? 'unfollow' : 'follow'}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not update follow status');
+        countEl.textContent = data.followerCount;
+        if (isFollowing) {
+          const idx = followed.indexOf(uname); followed.splice(idx, 1);
+          btn.textContent = '+ Follow'; btn.className = 'btn btn-primary';
+        } else {
+          followed.push(uname);
+          btn.textContent = '✓ Following'; btn.className = 'btn btn-secondary';
+        }
+        localStorage.setItem('wm_followed', JSON.stringify(followed));
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProfile);
+  </script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>
