@@ -113,7 +113,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Author</label>
-              <input class="form-input" id="postAuthor" value="World Mic" />
+              <input class="form-input" id="postAuthor" placeholder="Auto-filled from your account" />
             </div>
           </div>
 
@@ -167,6 +167,12 @@
       document.getElementById('pageTitle').textContent = 'Edit Post';
       document.title = 'Edit Post — World Mic Admin';
       loadPost();
+    } else if (localStorage.getItem('wm_role') !== 'admin') {
+      // Show the writer their own name will be credited, even before saving
+      try {
+        const res = await fetch(`/api/authors/${localStorage.getItem('wm_admin')}`);
+        if (res.ok) { const author = await res.json(); document.getElementById('postAuthor').value = author.name || ''; }
+      } catch { /* non-critical */ }
     }
     // Placeholder support for contenteditable
     const editor = document.getElementById('postContent');
@@ -189,7 +195,7 @@
     document.getElementById('postStatus').value = post.status || 'draft';
     document.getElementById('postCategory').value = post.category || '';
     document.getElementById('postTags').value = (post.tags || []).join(', ');
-    document.getElementById('postAuthor').value = post.author || 'World Mic';
+    document.getElementById('postAuthor').value = post.author || '';
     document.getElementById('postImage').value = post.featuredImage || '';
     document.getElementById('seoTitle').value = post.seoTitle || '';
     document.getElementById('seoDesc').value = post.seoDescription || '';
@@ -205,7 +211,7 @@
       status: status || document.getElementById('postStatus').value,
       category: document.getElementById('postCategory').value.trim() || 'General',
       tags: document.getElementById('postTags').value.split(',').map(t=>t.trim()).filter(Boolean),
-      author: document.getElementById('postAuthor').value.trim() || 'World Mic',
+      author: document.getElementById('postAuthor').value.trim(),
       featuredImage: document.getElementById('postImage').value.trim(),
       seoTitle: document.getElementById('seoTitle').value.trim(),
       seoDescription: document.getElementById('seoDesc').value.trim(),

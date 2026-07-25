@@ -13,9 +13,9 @@ router.get('/comments/post/:postId', async (req, res) => {
 
 router.post('/comments', async (req, res) => {
   try {
-    const comment = new Comment(req.body);
+    const comment = new Comment({ ...req.body, status: 'approved' });
     await comment.save();
-    res.status(201).json({ message: 'Comment submitted for review', comment });
+    res.status(201).json({ message: 'Comment posted', comment });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

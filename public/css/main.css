@@ -315,9 +315,9 @@ a:hover { color: var(--primary-dark); }
 .breadcrumb span { color: var(--border); }
 
 /* ===== MOBILE ===== */
-.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; z-index: 1002; position: relative; flex-shrink: 0; }
 .hamburger span { display: block; width: 22px; height: 2px; background: var(--text-dark); border-radius: 2px; transition: all var(--transition); }
-.mobile-menu { display: none; position: absolute; top: var(--header-h); left: 0; right: 0; background: var(--bg-white); border-bottom: 1px solid var(--border); padding: 16px 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+.mobile-menu { display: none; position: absolute; top: var(--header-h); left: 0; right: 0; background: var(--bg-white); border-bottom: 1px solid var(--border); padding: 16px 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); z-index: 1001; }
 .mobile-menu a { display: block; padding: 10px 0; border-bottom: 1px solid var(--border); color: var(--text-body); font-weight: 500; }
 .mobile-menu.open { display: block; }
 

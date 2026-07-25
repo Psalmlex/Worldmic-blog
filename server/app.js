@@ -35,7 +35,9 @@ async function seedSettings() {
     { key: 'socialInstagram', value: 'https://instagram.com/worldmic' },
   ];
   for (const s of defaults) {
-    await Settings.findOneAndUpdate({ key: s.key }, s, { upsert: true });
+    // $setOnInsert only applies the default the very first time a key doesn't exist yet —
+    // it will never overwrite a value the admin has already saved.
+    await Settings.findOneAndUpdate({ key: s.key }, { $setOnInsert: s }, { upsert: true });
   }
 }
 seedSettings().catch(console.error);

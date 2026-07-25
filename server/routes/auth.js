@@ -50,8 +50,15 @@ router.get('/verify', (req, res) => {
 // ======= STAFF MANAGEMENT (admin only) =======
 router.get('/staff', auth, auth.requireAdmin, async (req, res) => {
   try {
+    const Post = require('../models/Post');
     const staff = await StaffUser.find().select('-passwordHash -verificationCode').sort({ createdAt: -1 });
-    res.json(staff);
+    const staffWithStats = await Promise.all(staff.map(async (s) => {
+      const posts = await Post.find({ authorUsername: s.username }).select('views likes');
+      const totalViews = posts.reduce((sum, p) => sum + (p.views || 0), 0);
+      const totalLikes = posts.reduce((sum, p) => sum + (p.likes || 0), 0);
+      return { ...s.toObject(), postCount: posts.length, totalViews, totalLikes };
+    }));
+    res.json(staffWithStats);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -58,7 +58,7 @@
         <div class="table-header"><h2>Staff</h2><span id="staffCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Added</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Posts</th><th>Views</th><th>Likes</th><th>Followers</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody id="staffBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -94,12 +94,16 @@
   function renderTable() {
     document.getElementById('staffCount').textContent = `${allStaff.length} account${allStaff.length !== 1 ? 's' : ''}`;
     const body = document.getElementById('staffBody');
-    if (!allStaff.length) { body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:#9a9aaa">No staff accounts yet — the env admin login still works as usual.</td></tr>`; return; }
+    if (!allStaff.length) { body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:#9a9aaa">No staff accounts yet — the env admin login still works as usual.</td></tr>`; return; }
     body.innerHTML = allStaff.map(s => `
       <tr>
-        <td>${s.username}</td>
+        <td><a href="/author.html?u=${s.username}" target="_blank">${s.username}</a></td>
         <td>${s.name || '—'}</td>
         <td><span class="badge badge-${s.role === 'admin' ? 'approved' : 'pending'}">${s.role}</span></td>
+        <td>${s.postCount ?? 0}</td>
+        <td>${(s.totalViews ?? 0).toLocaleString()}</td>
+        <td>${(s.totalLikes ?? 0).toLocaleString()}</td>
+        <td>${(s.followerCount ?? 0).toLocaleString()}</td>
         <td style="font-size:0.82rem;color:#555">${fmtDate(s.createdAt)}</td>
         <td><button class="btn btn-danger btn-sm" onclick="deleteStaff('${s._id}','${s.username}')">✕</button></td>
       </tr>`).join('');
