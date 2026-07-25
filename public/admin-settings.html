@@ -105,15 +105,28 @@
         <!-- Email -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">📧 Email / Newsletter</div>
+          <div style="padding:12px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;font-size:0.82rem;color:#1b5e20;margin-bottom:16px">
+            ✅ <strong>Recommended:</strong> Render's free tier blocks SMTP entirely, so use a Brevo API key below — it works over regular HTTPS instead. Free forever, 300 emails/day, no card required at <a href="https://www.brevo.com" target="_blank" rel="noopener">brevo.com</a> → Settings → SMTP & API → API Keys.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Brevo API Key</label>
+            <input class="form-input" id="brevoApiKey" type="password" placeholder="xkeysib-…" autocomplete="off" />
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-            <div class="form-group"><label class="form-label">SMTP Host</label><input class="form-input" id="smtpHost" placeholder="smtp.gmail.com or smtp-relay.brevo.com" /></div>
-            <div class="form-group"><label class="form-label">SMTP Port</label><input class="form-input" id="smtpPort" placeholder="587" /></div>
-            <div class="form-group"><label class="form-label">SMTP Username</label><input class="form-input" id="smtpUser" placeholder="your@email.com" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">SMTP Password</label><input class="form-input" id="smtpPass" type="password" placeholder="App password or API key" autocomplete="off" /></div>
             <div class="form-group"><label class="form-label">From Name</label><input class="form-input" id="smtpFromName" placeholder="World Mic" /></div>
             <div class="form-group"><label class="form-label">From Email</label><input class="form-input" id="smtpFromEmail" placeholder="news@yourdomain.com" /></div>
           </div>
-          <div class="form-hint">Powers the Newsletter tool (available to Admin and Editor). Gmail requires an "App Password", not your regular password — or use a transactional service like Brevo/SendGrid/Mailgun.</div>
+          <div class="form-hint" style="margin-bottom:14px">From Email should be a verified sender in your Brevo account (Brevo → Senders).</div>
+
+          <details>
+            <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:#555;padding:8px 0">Alternative: raw SMTP (only works on paid hosting — won't work on Render's free tier)</summary>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px">
+              <div class="form-group"><label class="form-label">SMTP Host</label><input class="form-input" id="smtpHost" placeholder="smtp.gmail.com" /></div>
+              <div class="form-group"><label class="form-label">SMTP Port</label><input class="form-input" id="smtpPort" placeholder="587" /></div>
+              <div class="form-group"><label class="form-label">SMTP Username</label><input class="form-input" id="smtpUser" placeholder="your@email.com" autocomplete="off" /></div>
+              <div class="form-group"><label class="form-label">SMTP Password</label><input class="form-input" id="smtpPass" type="password" placeholder="App password or API key" autocomplete="off" /></div>
+            </div>
+          </details>
         </div>
 
         <!-- SEO -->
@@ -190,7 +203,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -202,7 +215,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;
