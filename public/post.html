@@ -128,10 +128,11 @@
       if (!name || !content) { showToast('Name and comment are required', 'error'); return; }
       try {
         await apiFetch('/comments', { method: 'POST', body: JSON.stringify({ postId, name, email, content }) });
-        showToast('Comment submitted! It will appear after review.', 'success');
+        showToast('Comment posted!', 'success');
         document.getElementById('cName').value = '';
         document.getElementById('cEmail').value = '';
         document.getElementById('cContent').value = '';
+        loadComments(postId);
       } catch (err) { showToast(err.message, 'error'); }
     }
 
