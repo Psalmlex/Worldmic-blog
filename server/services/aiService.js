@@ -179,11 +179,11 @@ async function fetchUrlContent(url) {
   }
 }
 
-const WORD_TARGETS = { short: '400-500', medium: '700-800', long: '1000-1200' };
+const WORD_TARGETS = { short: '600-800', medium: '1000-1300', long: '1500-2000' };
 
 // ─── Generate blog post content ───────────────────────────────────────────────
 // topic: subject, OR leave blank and pass sourceUrl to write about a fetched page/product
-// length: 'short' | 'medium' | 'long' (default 'long' — full articles, ~1000 words)
+// length: 'short' | 'medium' | 'long' (default 'long' — full, in-depth, SEO-ready articles)
 async function generatePost(topic, tone = '', category = 'General', options = {}) {
   const { length = 'long', sourceUrl = '' } = options;
   const wordTarget = WORD_TARGETS[length] || WORD_TARGETS.long;
@@ -197,22 +197,36 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     sourceContext = `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
   }
 
-  const system = `You are a world-class article writer for World Mic, a multi-category blog platform. ${toneInstruction}
-Write a full-length, in-depth ARTICLE — not a short blog post. Target length: approximately ${wordTarget} words.
-Write SEO-friendly, engaging, well-structured HTML content with proper headings (h2, h3), multiple developed paragraphs, and lists where appropriate. Cover the topic thoroughly: background/context, key details, implications or practical takeaways, and a conclusion.
+  const system = `You are a senior editorial writer for World Mic, producing articles that genuinely compete for search traffic — not generic filler. ${toneInstruction}
+
+LENGTH: ${wordTarget} words. Do not pad with repetition to hit the count — every paragraph must add real value. If the topic is thin, go deeper into examples, mistakes, and how-to detail rather than restating the same point.
+
+STRUCTURE (required):
+- A hook opening paragraph that states why this matters to the reader right now — no throat-clearing ("In today's world...").
+- 4-7 <h2> sections that each cover a distinct angle (context/background, core strategies, common mistakes, a worked example, practical takeaways). Use <h3> for sub-points within a section when it aids scanning.
+- Any list of strategies, steps, tips, or mistakes MUST be an actual <ul>/<ol> with <li> items — never a wall of text pretending to be a list.
+- At least one concrete, worked example or scenario (e.g. "Say someone earning $3,000/month starts by..."). Frame invented examples as illustrative ("for example," "imagine," "say someone...") — never present a fabricated person or company as if they were a real, verifiable case.
+- End with a short, specific call to action — a concrete next step the reader can take today, not a vague "take control of your future."
+
+SPECIFICITY (critical — this is what separates a professional article from generic filler):
+- Every piece of advice needs a "how," not just a "what." Instead of "create a budget," explain a specific method (e.g. naming an approach, giving a simple worked split, or a step-by-step).
+- Avoid generic statements that could apply to any article on the topic. If a sentence could be copy-pasted into a hundred other articles unchanged, rewrite it to be specific to this piece.
+- Do NOT invent specific statistics, percentages, studies, or named-organization citations you cannot verify — fabricated numbers presented as fact are misleading to readers. Instead use precise, verifiable-sounding language for general, well-established principles ("most financial guidance suggests...", "a common rule of thumb is...") rather than a fake specific stat with a fake source.
+
+SEO: Identify 6-10 relevant keywords/phrases a reader might search for this topic, and weave them naturally into the headings and body — never keyword-stuff or list them separately.
 
 Respond using EXACTLY this tagged format, with no other text before, between, or after the tags. Do not use JSON. Do not wrap anything in markdown code fences:
 
-[TITLE]A compelling, professional title (no quotation marks, no curly braces)[/TITLE]
+[TITLE]A compelling, specific title (no quotation marks, no curly braces)[/TITLE]
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
-[SEOTITLE]An SEO-optimized title, under 60 characters[/SEOTITLE]
-[SEODESCRIPTION]An SEO meta description, under 160 characters[/SEODESCRIPTION]
-[TAGS]tag one, tag two, tag three[/TAGS]
+[SEOTITLE]An SEO-optimized title, under 60 characters, including the primary keyword[/SEOTITLE]
+[SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
+[TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
 [CONTENT]
-Full HTML article body here, using <h2>, <h3>, <p>, <ul>/<li> as needed. Aim for ${wordTarget} words.
+Full HTML article body here, following the structure and specificity rules above. Aim for ${wordTarget} words.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Write a comprehensive, in-depth article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 3500);
+  const result = await callAI(system, `Write a comprehensive, in-depth, specific (not generic) article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 4500);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
@@ -231,20 +245,30 @@ Full HTML article body here, using <h2>, <h3>, <p>, <ul>/<li> as needed. Aim for
 
 // ─── Re-edit existing post ────────────────────────────────────────────────────
 async function reeditPost(existingContent, existingTitle, instructions = '') {
-  const system = `You are an expert blog editor for World Mic. Improve the given blog post: fix grammar, improve flow, enhance SEO, add better structure with HTML headings and paragraphs. ${instructions ? 'Special instructions: ' + instructions : ''}
+  const system = `You are a senior editor for World Mic, upgrading a draft into a genuinely competitive, professional article — not just polishing sentences. ${instructions ? 'Special instructions: ' + instructions : ''}
+
+Fix grammar and flow, but more importantly:
+- Expand generic or vague statements into specific, actionable guidance. If a sentence could apply to almost any article on this topic, rewrite it to be specific to this piece — add a concrete "how," an example, or a specific method.
+- Restructure any list of tips/steps/mistakes that's written as a paragraph into a real <ul>/<ol> with <li> items.
+- Add at least one concrete worked example or scenario if the draft doesn't already have one. Frame it as illustrative ("for example," "imagine") — never as a fabricated real case.
+- Break the content into clear <h2> (and <h3> where useful) sections if it isn't already well-structured.
+- Do NOT invent specific statistics, studies, or named-organization citations you cannot verify. Use general, well-established principles instead of fake specific numbers.
+- End with a specific, actionable call to action.
+- Naturally weave in relevant SEO keywords for the topic through the headings and body.
+- Aim for at least 1200 words in the improved version unless the topic is too narrow to responsibly support that without padding.
 
 Respond using EXACTLY this tagged format, with no other text before, between, or after the tags. Do not use JSON. Do not wrap anything in markdown code fences:
 
-[TITLE]Improved post title (no quotation marks)[/TITLE]
+[TITLE]Improved, specific post title (no quotation marks)[/TITLE]
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
-[SEOTITLE]An SEO-optimized title, under 60 characters[/SEOTITLE]
-[SEODESCRIPTION]An SEO meta description, under 160 characters[/SEODESCRIPTION]
-[TAGS]tag one, tag two, tag three[/TAGS]
+[SEOTITLE]An SEO-optimized title, under 60 characters, including the primary keyword[/SEOTITLE]
+[SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
+[TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
 [CONTENT]
-Full improved HTML article body here.
+Full improved HTML article body here, following the structure and specificity rules above.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Re-edit this post titled "${existingTitle}":\n\n${existingContent}`, 2500);
+  const result = await callAI(system, `Re-edit this post titled "${existingTitle}":\n\n${existingContent}`, 4500);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
