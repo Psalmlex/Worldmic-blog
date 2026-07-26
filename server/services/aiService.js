@@ -148,6 +148,13 @@ function parseTaggedResponse(raw, keys) {
   return result;
 }
 
+// Safety net: guarantees a call-to-action is present even if the model forgot or got cut off
+function ensureCTA(content, topic) {
+  if (/class=["']cta-final["']/i.test(content)) return content;
+  const fallback = `<p class="cta-final"><strong>Ready to put this into practice? Start with just one step from this article today${topic ? ` around ${topic}` : ''} — small, consistent action beats waiting for the perfect plan.</strong></p>`;
+  return content.trim() + '\n' + fallback;
+}
+
 // ─── Fetch and extract readable text from a URL (for "write about this product/page") ──
 async function fetchUrlContent(url) {
   try {
@@ -206,7 +213,7 @@ STRUCTURE (required):
 - 4-7 <h2> sections that each cover a distinct angle (context/background, core strategies, common mistakes, a worked example, practical takeaways). Use <h3> for sub-points within a section when it aids scanning.
 - Any list of strategies, steps, tips, or mistakes MUST be an actual <ul>/<ol> with <li> items — never a wall of text pretending to be a list.
 - At least one concrete, worked example or scenario (e.g. "Say someone earning $3,000/month starts by..."). Frame invented examples as illustrative ("for example," "imagine," "say someone...") — never present a fabricated person or company as if they were a real, verifiable case.
-- End with a short, specific call to action — a concrete next step the reader can take today, not a vague "take control of your future."
+- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — not a vague "take control of your future," a specific action tied to this topic.
 
 SPECIFICITY (critical — this is what separates a professional article from generic filler):
 - Every piece of advice needs a "how," not just a "what." Instead of "create a budget," explain a specific method (e.g. naming an approach, giving a simple worked split, or a step-by-step).
@@ -226,13 +233,14 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 Full HTML article body here, following the structure and specificity rules above. Aim for ${wordTarget} words.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Write a comprehensive, in-depth, specific (not generic) article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 4500);
+  const result = await callAI(system, `Write a comprehensive, in-depth, specific (not generic) article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 6000);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
+    const contentWithCTA = ensureCTA(parsed.CONTENT, effectiveTopic);
     return {
       title: parsed.TITLE,
-      content: parsed.CONTENT,
+      content: contentWithCTA,
       excerpt: parsed.EXCERPT || parsed.CONTENT.replace(/<[^>]+>/g, '').substring(0, 200),
       seoTitle: parsed.SEOTITLE || parsed.TITLE,
       seoDescription: parsed.SEODESCRIPTION || parsed.EXCERPT || '',
@@ -253,7 +261,7 @@ Fix grammar and flow, but more importantly:
 - Add at least one concrete worked example or scenario if the draft doesn't already have one. Frame it as illustrative ("for example," "imagine") — never as a fabricated real case.
 - Break the content into clear <h2> (and <h3> where useful) sections if it isn't already well-structured.
 - Do NOT invent specific statistics, studies, or named-organization citations you cannot verify. Use general, well-established principles instead of fake specific numbers.
-- End with a specific, actionable call to action.
+- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — not a vague generic sign-off.
 - Naturally weave in relevant SEO keywords for the topic through the headings and body.
 - Aim for at least 1200 words in the improved version unless the topic is too narrow to responsibly support that without padding.
 
@@ -268,13 +276,13 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 Full improved HTML article body here, following the structure and specificity rules above.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Re-edit this post titled "${existingTitle}":\n\n${existingContent}`, 4500);
+  const result = await callAI(system, `Re-edit this post titled "${existingTitle}":\n\n${existingContent}`, 6000);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
     return {
       title: parsed.TITLE,
-      content: parsed.CONTENT,
+      content: ensureCTA(parsed.CONTENT, existingTitle),
       excerpt: parsed.EXCERPT || parsed.CONTENT.replace(/<[^>]+>/g, '').substring(0, 200),
       seoTitle: parsed.SEOTITLE || parsed.TITLE,
       seoDescription: parsed.SEODESCRIPTION || '',

@@ -207,6 +207,8 @@ a:hover { color: var(--primary-dark); }
 .post-meta-bar { display: flex; align-items: center; gap: 20px; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 28px; }
 .post-meta-bar span { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
 .post-body { font-size: 1.05rem; color: var(--text-body); line-height: 1.85; }
+.post-body .cta-final { background: linear-gradient(135deg, var(--primary-light), #eef2ff); border-left: 4px solid var(--primary); border-radius: 8px; padding: 18px 20px; margin: 32px 0 8px; font-size: 1.05rem; }
+.post-body .cta-final strong { color: var(--primary-dark); }
 .post-body h2 { font-family: var(--font-head); font-size: 1.6rem; font-weight: 700; color: var(--text-dark); margin: 32px 0 14px; }
 .post-body h3 { font-family: var(--font-head); font-size: 1.25rem; font-weight: 700; color: var(--text-dark); margin: 24px 0 10px; }
 .post-body p { margin-bottom: 18px; }
