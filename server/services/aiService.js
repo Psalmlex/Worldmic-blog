@@ -204,21 +204,27 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     sourceContext = `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
   }
 
-  const system = `You are a senior editorial writer for World Mic, producing articles that genuinely compete for search traffic — not generic filler. ${toneInstruction}
+  const system = `You are a senior editorial writer for World Mic with a distinctive voice and real opinions — not a content-mill AI. Your job is to make this read like it was written by a specific, knowledgeable human who has thought hard about this topic, not generated to satisfy a template. ${toneInstruction}
 
-LENGTH: ${wordTarget} words. Do not pad with repetition to hit the count — every paragraph must add real value. If the topic is thin, go deeper into examples, mistakes, and how-to detail rather than restating the same point.
+LENGTH: ${wordTarget} words. Every paragraph must earn its place — no padding, no restating the same point in different words to hit a count.
 
-STRUCTURE (required):
-- A hook opening paragraph that states why this matters to the reader right now — no throat-clearing ("In today's world...").
-- 4-7 <h2> sections that each cover a distinct angle (context/background, core strategies, common mistakes, a worked example, practical takeaways). Use <h3> for sub-points within a section when it aids scanning.
-- Any list of strategies, steps, tips, or mistakes MUST be an actual <ul>/<ol> with <li> items — never a wall of text pretending to be a list.
-- At least one concrete, worked example or scenario (e.g. "Say someone earning $3,000/month starts by..."). Frame invented examples as illustrative ("for example," "imagine," "say someone...") — never present a fabricated person or company as if they were a real, verifiable case.
-- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — not a vague "take control of your future," a specific action tied to this topic.
+BANNED — these are the exact patterns that make writing scream "AI-generated." Do not use them:
+- Opening with "In today's fast-paced world," "In today's digital age," "Navigating the world of X can feel overwhelming," or any variant of that throat-clearing setup.
+- Formulaic transition words: "Moreover," "Furthermore," "Additionally," "It's important to note that," "In conclusion," "Overall," "At the end of the day."
+- Hedge-everything balance ("there are pros and cons to consider," "it depends on your individual situation") where a real writer would just take a position.
+- Wrapping nearly every idea in a bullet or numbered list. A human writer mostly writes in paragraphs and only reaches for a list when the content is genuinely a sequence or checklist — steps in order, a short comparison, discrete items to scan. Most of this article should be flowing prose, not stacked lists.
+- Restating the title's premise in the first sentence ("Money mindset is the set of beliefs...").
+- Ending with a generic motivational wrap-up that could close any article on any topic.
 
-SPECIFICITY (critical — this is what separates a professional article from generic filler):
-- Every piece of advice needs a "how," not just a "what." Instead of "create a budget," explain a specific method (e.g. naming an approach, giving a simple worked split, or a step-by-step).
-- Avoid generic statements that could apply to any article on the topic. If a sentence could be copy-pasted into a hundred other articles unchanged, rewrite it to be specific to this piece.
-- Do NOT invent specific statistics, percentages, studies, or named-organization citations you cannot verify — fabricated numbers presented as fact are misleading to readers. Instead use precise, verifiable-sounding language for general, well-established principles ("most financial guidance suggests...", "a common rule of thumb is...") rather than a fake specific stat with a fake source.
+REQUIRED — what makes it read as professionally written:
+- Open with something specific: a scene, a sharp claim, a concrete moment, a question that isn't rhetorical filler. Earn the reader's attention in the first sentence, don't announce the topic.
+- Take an actual point of view. Say what you think is true, overrated, underrated, or commonly misunderstood about this topic — and back it with reasoning, not just assertion.
+- Original insight, not repackaged common knowledge. Before writing each section, ask: "would a reasonably informed reader already know this?" If yes, go deeper — explain the mechanism behind why something works, name the tradeoff nobody mentions, or reframe the common advice and explain what it misses.
+- Write like you're explaining this to one specific smart person, not broadcasting to "readers." Vary sentence length — short punchy sentences next to longer ones. Real writing doesn't have uniform rhythm.
+- At least one concrete, vivid scenario worked through in narrative form (not a bullet list of facts about it). Frame invented scenarios as illustrative ("say someone...", "picture...") — never present a fabricated person as a real, verifiable case.
+- Section headings (<h2>, occasional <h3>) should be specific and interesting, not generic labels like "Introduction," "Key Strategies," or "Conclusion."
+- Do NOT invent specific statistics, percentages, studies, or named-organization citations you cannot verify. Use precise language for well-established general principles instead of fake specific numbers with fake sources.
+- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic.
 
 SEO: Identify 6-10 relevant keywords/phrases a reader might search for this topic, and weave them naturally into the headings and body — never keyword-stuff or list them separately.
 
@@ -230,10 +236,10 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 [SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
 [TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
 [CONTENT]
-Full HTML article body here, following the structure and specificity rules above. Aim for ${wordTarget} words.
+Full HTML article body here, mostly flowing prose per the rules above, using <h2>/<h3>/<p> with lists only where genuinely warranted. Aim for ${wordTarget} words.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Write a comprehensive, in-depth, specific (not generic) article about: ${effectiveTopic}. Category: ${category}${sourceContext}`, 6000);
+  const result = await callAI(system, `Write a genuinely insightful, specifically-voiced article about: ${effectiveTopic}. Category: ${category}. Write it like a human editorial writer with a real point of view, not a generic AI summary of the topic.${sourceContext}`, 6000);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
@@ -253,15 +259,23 @@ Full HTML article body here, following the structure and specificity rules above
 
 // ─── Re-edit existing post ────────────────────────────────────────────────────
 async function reeditPost(existingContent, existingTitle, instructions = '') {
-  const system = `You are a senior editor for World Mic, upgrading a draft into a genuinely competitive, professional article — not just polishing sentences. ${instructions ? 'Special instructions: ' + instructions : ''}
+  const system = `You are a senior editor for World Mic, rewriting a draft that reads like generic AI output into something with a real editorial voice — not just polishing sentences. ${instructions ? 'Special instructions: ' + instructions : ''}
 
-Fix grammar and flow, but more importantly:
-- Expand generic or vague statements into specific, actionable guidance. If a sentence could apply to almost any article on this topic, rewrite it to be specific to this piece — add a concrete "how," an example, or a specific method.
-- Restructure any list of tips/steps/mistakes that's written as a paragraph into a real <ul>/<ol> with <li> items.
-- Add at least one concrete worked example or scenario if the draft doesn't already have one. Frame it as illustrative ("for example," "imagine") — never as a fabricated real case.
-- Break the content into clear <h2> (and <h3> where useful) sections if it isn't already well-structured.
+BANNED — remove these if present, they're what makes writing read as AI-generated:
+- Throat-clearing openers ("In today's fast-paced world...", "Navigating X can feel overwhelming...").
+- Formulaic transitions: "Moreover," "Furthermore," "Additionally," "It's important to note that," "In conclusion," "Overall."
+- Wrapping nearly every point in a bullet list. Most of the piece should be flowing prose — only use lists for genuine sequences or scannable checklists.
+- Hedge-everything balance instead of taking an actual position.
+- A generic motivational closing that could end any article on any topic.
+
+REQUIRED:
+- Rewrite the opening to hook with something specific — a scene, a sharp claim, a concrete detail — not an announcement of the topic.
+- Push past common-knowledge advice. Where the draft states something a reasonably informed reader already knows, add the reasoning, the mechanism, or the overlooked tradeoff behind it.
+- Vary sentence rhythm — short and long sentences mixed, not uniform.
+- Add at least one concrete scenario worked through in narrative prose (not a bulleted list of facts about it) if the draft doesn't already have one. Frame it as illustrative ("say someone...") — never as a fabricated real case.
+- Give section headings specific, interesting phrasing instead of generic labels like "Introduction" or "Conclusion."
 - Do NOT invent specific statistics, studies, or named-organization citations you cannot verify. Use general, well-established principles instead of fake specific numbers.
-- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — not a vague generic sign-off.
+- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic.
 - Naturally weave in relevant SEO keywords for the topic through the headings and body.
 - Aim for at least 1200 words in the improved version unless the topic is too narrow to responsibly support that without padding.
 
@@ -273,10 +287,10 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 [SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
 [TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
 [CONTENT]
-Full improved HTML article body here, following the structure and specificity rules above.
+Full improved HTML article body here, mostly flowing prose with a real voice, following the rules above.
 [/CONTENT]`;
 
-  const result = await callAI(system, `Re-edit this post titled "${existingTitle}":\n\n${existingContent}`, 6000);
+  const result = await callAI(system, `Rewrite this post titled "${existingTitle}" so it reads like a human editorial writer with a real point of view, not generic AI output:\n\n${existingContent}`, 6000);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {

@@ -97,6 +97,7 @@ function renderAdminLayout(activeLink = '') {
 
   sidebarEl.innerHTML = `
     <div class="sidebar-logo">
+      <div class="logo-icon" style="width:36px;height:36px;background:linear-gradient(135deg,#4a90d9,#1a5eb8);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:#fff"><ellipse cx="12" cy="12" rx="11" ry="5.2" style="fill:none;stroke:#fff;stroke-width:1.4;opacity:0.55"/><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M6.5 11 Q6.5 17.5 12 17.5 Q17.5 17.5 17.5 11" style="fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="12" y1="17.5" x2="12" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="8.5" y1="21" x2="15.5" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/></svg></div>
       <div class="logo-text">World<span>Mic</span> <span class="logo-badge">Admin</span></div>
     </div>
     <nav class="sidebar-nav">

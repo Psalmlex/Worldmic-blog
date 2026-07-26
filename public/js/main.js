@@ -93,7 +93,7 @@ async function renderFooter() {
   footer.innerHTML = `
     <div class="footer-top">
       <div class="footer-brand">
-        <div class="site-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div><div class="logo-text">World<span>Mic</span></div></div>
+        <div class="site-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="11" ry="5.2" style="fill:none;stroke:#fff;stroke-width:1.4;opacity:0.55"/><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M6.5 11 Q6.5 17.5 12 17.5 Q17.5 17.5 17.5 11" style="fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="12" y1="17.5" x2="12" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="8.5" y1="21" x2="15.5" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/></svg></div><div class="logo-text">World<span>Mic</span></div></div>
         <p class="footer-desc">${s.footerAbout || 'World Mic is a multi-category blog platform.'}</p>
         <div class="footer-social">
           <a href="${s.socialTwitter || '#'}" class="social-link" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.735-8.851L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg></a>
@@ -155,7 +155,7 @@ async function renderHeader(activePage = '') {
   const s = await getSettings();
   header.innerHTML = `
     <div class="header-inner">
-      <a href="/" class="site-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></div><div class="logo-text">World<span>Mic</span></div></a>
+      <a href="/" class="site-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="11" ry="5.2" style="fill:none;stroke:#fff;stroke-width:1.4;opacity:0.55"/><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M6.5 11 Q6.5 17.5 12 17.5 Q17.5 17.5 17.5 11" style="fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="12" y1="17.5" x2="12" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="8.5" y1="21" x2="15.5" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/></svg></div><div class="logo-text">World<span>Mic</span></div></a>
       <nav class="main-nav" id="mainNav">
         <a href="/" class="${activePage === 'home' ? 'active' : ''}">Home</a>
         <a href="/category.html" class="${activePage === 'categories' ? 'active' : ''}">Categories</a>
