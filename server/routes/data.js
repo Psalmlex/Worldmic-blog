@@ -245,7 +245,7 @@ router.get('/about', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/about', auth, async (req, res) => {
+router.put('/about', auth, auth.requireAdmin, async (req, res) => {
   try {
     const { content } = req.body;
     await Settings.findOneAndUpdate({ key: 'aboutPageContent' }, { key: 'aboutPageContent', value: content || '' }, { upsert: true });

@@ -21,7 +21,13 @@
       <div class="form-card" style="max-width:600px">
         <div class="form-card-title">Edit Profile</div>
         <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" id="pName" /></div>
-        <div class="form-group"><label class="form-label">Avatar Image URL</label><input class="form-input" id="pAvatar" placeholder="https://…" /></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="pEmail" type="email" placeholder="your@email.com" /></div>
+        <div class="form-group">
+          <label class="form-label">Avatar Photo</label>
+          <input type="file" id="pAvatarFile" accept="image/*" class="form-input" style="padding:8px" onchange="uploadAvatar(this)" />
+          <div id="avatarPreview" style="margin-top:10px;display:none"><img id="avatarPreviewImg" style="width:70px;height:70px;border-radius:50%;object-fit:cover" /></div>
+          <input type="hidden" id="pAvatar" />
+        </div>
         <div class="form-group"><label class="form-label">Bio</label><textarea class="form-input" id="pBio" style="min-height:100px;resize:vertical"></textarea></div>
         <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save Profile</button>
       </div>
@@ -43,16 +49,46 @@
 
   async function loadProfile() {
     try {
+      const me = await adminFetch('/auth/me');
+      document.getElementById('pName').value = me.name || '';
+      document.getElementById('pEmail').value = me.email || '';
+      document.getElementById('pBio').value = me.bio || '';
+      document.getElementById('pAvatar').value = me.avatarUrl || '';
+      if (me.avatarUrl) { document.getElementById('avatarPreviewImg').src = me.avatarUrl; document.getElementById('avatarPreview').style.display = ''; }
+    } catch (err) { showToast(err.message, 'error'); }
+
+    // Stats only exist for accounts with a public writer profile (not the env-based admin) — fail quietly if unavailable
+    try {
       const author = await apiFetchPublic(`/authors/${myUsername}`);
-      document.getElementById('pName').value = author.name || '';
-      document.getElementById('pBio').value = author.bio || '';
-      document.getElementById('pAvatar').value = author.avatarUrl || '';
       document.getElementById('statsRow').innerHTML = `
         ${statCard(author.postCount, 'Posts')}
         ${statCard(author.followerCount, 'Followers')}
         ${statCard(author.totalLikes, 'Total Likes')}
         ${statCard(author.totalViews, 'Total Views')}`;
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch { /* no public profile for this account type — that's fine */ }
+  }
+
+  async function uploadAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Please choose an image file', 'error'); input.value = ''; return; }
+    const formData = new FormData();
+    formData.append('image', file);
+    showToast('Uploading photo…', 'info');
+    try {
+      const token = localStorage.getItem('wm_token');
+      const res = await fetch('/api/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      document.getElementById('pAvatar').value = data.url;
+      document.getElementById('avatarPreviewImg').src = data.url;
+      document.getElementById('avatarPreview').style.display = '';
+      showToast('Photo uploaded! Click Save Profile to apply.', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      input.value = '';
+    }
   }
 
   function statCard(value, label) {
@@ -75,6 +111,7 @@
         method: 'PUT',
         body: JSON.stringify({
           name: document.getElementById('pName').value.trim(),
+          email: document.getElementById('pEmail').value.trim(),
           bio: document.getElementById('pBio').value.trim(),
           avatarUrl: document.getElementById('pAvatar').value.trim(),
         })

@@ -208,17 +208,57 @@ router.delete('/staff/:id', auth, auth.requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Any logged-in staff member can update their own profile (bio, avatar, display name)
+// Any logged-in staff member can update their own profile (bio, avatar, display name, email)
 router.put('/me', auth, async (req, res) => {
   try {
-    const { name, bio, avatarUrl } = req.body;
+    const { name, bio, avatarUrl, email } = req.body;
+
+    if (isEnvAdmin(req.admin.username)) {
+      if (email !== undefined) {
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
+        await setSetting('envAdminEmail', email);
+      }
+      if (name !== undefined) await setSetting('envAdminName', name);
+      if (avatarUrl !== undefined) await setSetting('envAdminAvatarUrl', avatarUrl);
+      return res.json({
+        username: req.admin.username,
+        name: name !== undefined ? name : (await getSetting('envAdminName')) || '',
+        email: email !== undefined ? email : (await getSetting('envAdminEmail')) || '',
+        avatarUrl: avatarUrl !== undefined ? avatarUrl : (await getSetting('envAdminAvatarUrl')) || '',
+      });
+    }
+
+    if (email !== undefined && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     const staff = await StaffUser.findOneAndUpdate(
       { username: req.admin.username },
-      { ...(name !== undefined && { name }), ...(bio !== undefined && { bio }), ...(avatarUrl !== undefined && { avatarUrl }) },
+      {
+        ...(name !== undefined && { name }),
+        ...(bio !== undefined && { bio }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(email !== undefined && { email }),
+      },
       { new: true }
     );
-    if (!staff) return res.status(404).json({ error: 'Only self-signed-up writer accounts have an editable profile' });
-    res.json({ username: staff.username, name: staff.name, bio: staff.bio, avatarUrl: staff.avatarUrl });
+    if (!staff) return res.status(404).json({ error: 'Account not found' });
+    res.json({ username: staff.username, name: staff.name, bio: staff.bio, avatarUrl: staff.avatarUrl, email: staff.email });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Fetch the current logged-in user's own profile (works for env-admin too, which has no StaffUser record)
+router.get('/me', auth, async (req, res) => {
+  try {
+    if (isEnvAdmin(req.admin.username)) {
+      return res.json({
+        username: req.admin.username,
+        name: (await getSetting('envAdminName')) || '',
+        email: (await getSetting('envAdminEmail')) || '',
+        avatarUrl: (await getSetting('envAdminAvatarUrl')) || '',
+        bio: '',
+      });
+    }
+    const staff = await StaffUser.findOne({ username: req.admin.username }).select('username name email bio avatarUrl');
+    if (!staff) return res.status(404).json({ error: 'Account not found' });
+    res.json(staff);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

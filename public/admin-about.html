@@ -43,6 +43,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
     if (!await requireAuth()) return;
+    if (!requireAdminRole()) return;
     renderAdminLayout('/admin-about.html');
     loadAbout();
   });
