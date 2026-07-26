@@ -40,16 +40,27 @@
       <p>Sign in to manage your blog</p>
     </div>
     <div class="error-msg" id="errorMsg"></div>
-    <div class="form-group">
-      <label class="form-label">Username</label>
-      <input class="form-input" type="text" id="username" placeholder="Enter username" autocomplete="username" />
+
+    <div id="step1">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" type="text" id="username" placeholder="Enter username" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" id="password" placeholder="Enter password" autocomplete="current-password" />
+      </div>
+      <button class="btn-login" id="loginBtn" onclick="login()">Sign In →</button>
+      <p style="text-align:center;margin-top:14px;font-size:0.85rem"><a href="/forgot-password.html" style="color:#1a5eb8">Forgot password?</a></p>
     </div>
-    <div class="form-group">
-      <label class="form-label">Password</label>
-      <input class="form-input" type="password" id="password" placeholder="Enter password" autocomplete="current-password" />
+
+    <div id="step2fa" style="display:none">
+      <p style="text-align:center;color:#555;margin-bottom:16px">Enter the 6-digit code from your authenticator app.</p>
+      <div class="form-group">
+        <input class="form-input" id="totpCode" placeholder="123456" maxlength="6" style="text-align:center;font-size:1.6rem;letter-spacing:8px" inputmode="numeric" />
+      </div>
+      <button class="btn-login" id="verify2faBtn" onclick="verify2FA()">Verify →</button>
     </div>
-    <button class="btn-login" id="loginBtn" onclick="login()">Sign In →</button>
-    <p style="text-align:center;margin-top:14px;font-size:0.85rem"><a href="/forgot-password.html" style="color:#1a5eb8">Forgot password?</a></p>
   </div>
 
   <script>
@@ -57,6 +68,8 @@
 // if (localStorage.getItem('wm_token')) location.href = '/admin-dashboard.html';
     document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
     document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+    let pending2FAUsername = '';
 
     async function login() {
       const btn = document.getElementById('loginBtn');
@@ -77,12 +90,39 @@
           if (data.needsVerification) { location.href = `/verify-email.html?username=${encodeURIComponent(data.username)}`; return; }
           showError(data.error || 'Login failed'); return;
         }
+        if (data.requires2FA) {
+          pending2FAUsername = data.username;
+          document.getElementById('step1').style.display = 'none';
+          document.getElementById('step2fa').style.display = '';
+          document.getElementById('totpCode').focus();
+          return;
+        }
         localStorage.setItem('wm_token', data.token);
         localStorage.setItem('wm_admin', username);
         localStorage.setItem('wm_role', data.role || 'admin');
         location.href = '/admin-dashboard.html';
       } catch { showError('Connection error. Is the server running?'); }
       finally { btn.disabled = false; btn.textContent = 'Sign In →'; }
+    }
+
+    async function verify2FA() {
+      const btn = document.getElementById('verify2faBtn');
+      const code = document.getElementById('totpCode').value.trim();
+      if (!code) { showError('Enter the 6-digit code'); return; }
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        const res = await fetch('/api/auth/login-2fa', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: pending2FAUsername, code })
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Invalid code'); return; }
+        localStorage.setItem('wm_token', data.token);
+        localStorage.setItem('wm_admin', pending2FAUsername);
+        localStorage.setItem('wm_role', data.role || 'admin');
+        location.href = '/admin-dashboard.html';
+      } catch { showError('Connection error.'); }
+      finally { btn.disabled = false; btn.textContent = 'Verify →'; }
     }
 
     function showError(msg) {

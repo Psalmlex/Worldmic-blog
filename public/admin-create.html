@@ -41,6 +41,9 @@
                 <div class="divider"></div>
                 <button onclick="insertBlockquote()">❝ Quote</button>
                 <button onclick="insertLink()">🔗 Link</button>
+                <div class="divider"></div>
+                <button onclick="document.getElementById('inlineImageFile').click()">🖼️ Image</button>
+                <input type="file" id="inlineImageFile" accept="image/*" style="display:none" onchange="insertImageFromFile(this)" />
               </div>
               <div id="postContent" class="form-input" contenteditable="true" style="min-height:400px;padding:16px;border-radius:0 0 7px 7px;line-height:1.8;outline:none" data-placeholder="Start writing your post here…"></div>
             </div>
@@ -246,6 +249,43 @@
     document.execCommand('insertHTML', false, `<${tag}>${text}</${tag}><p></p>`);
   }
   function insertBlockquote() { document.execCommand('insertHTML', false, '<blockquote>Quote text here</blockquote><p></p>'); }
+
+  // Remember where the cursor was in the editor before the file picker steals focus
+  let savedRange = null;
+  document.getElementById('postContent').addEventListener('mouseup', saveSelection);
+  document.getElementById('postContent').addEventListener('keyup', saveSelection);
+  function saveSelection() {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && document.getElementById('postContent').contains(sel.anchorNode)) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+  }
+
+  async function insertImageFromFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Please choose an image file', 'error'); input.value = ''; return; }
+    const formData = new FormData();
+    formData.append('image', file);
+    showToast('Uploading image…', 'info');
+    try {
+      const token = localStorage.getItem('wm_token');
+      const res = await fetch('/api/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      const editor = document.getElementById('postContent');
+      editor.focus();
+      const sel = window.getSelection();
+      if (savedRange) { sel.removeAllRanges(); sel.addRange(savedRange); }
+      document.execCommand('insertHTML', false, `<img src="${data.url}" alt="" style="max-width:100%;border-radius:8px;margin:12px 0" /><p></p>`);
+      showToast('Image inserted!', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      input.value = '';
+    }
+  }
   function insertLink() {
     const url = prompt('Enter URL:');
     if (url) document.execCommand('createLink', false, url);

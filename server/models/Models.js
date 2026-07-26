@@ -63,6 +63,9 @@ const staffUserSchema = new mongoose.Schema({
   verificationCode: { type: String, default: '' },
   verificationCodeExpires: { type: Date },
   followerCount: { type: Number, default: 0 },
+  twoFactorSecret: { type: String, default: '' },
+  twoFactorPendingSecret: { type: String, default: '' },
+  twoFactorEnabled: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Inquiry Model (Join the Team + Partner/Advertise submissions)

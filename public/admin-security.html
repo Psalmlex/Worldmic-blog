@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="topbar-title">Security</div>
+      <div class="topbar-actions"><div class="admin-avatar" id="adminAvatar">A</div></div>
+    </div>
+    <div class="admin-content">
+      <div class="form-card" style="max-width:520px">
+        <div class="form-card-title">🔐 Two-Factor Authentication</div>
+        <p style="font-size:0.85rem;color:#555;margin-bottom:18px">Adds a second step to login using an authenticator app (Google Authenticator, Authy, etc.) — even if someone gets your password, they can't log in without your phone.</p>
+
+        <div id="statusLoading" style="color:#9a9aaa;font-size:0.85rem">Checking status…</div>
+
+        <div id="disabledState" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+            <span class="badge badge-inactive">Disabled</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="startSetup()">Enable 2FA</button>
+        </div>
+
+        <div id="setupState" style="display:none">
+          <p style="font-size:0.85rem;color:#555;margin-bottom:12px">1. Scan this QR code with Google Authenticator (or any TOTP app):</p>
+          <div style="text-align:center;margin-bottom:16px"><img id="qrImage" style="width:200px;height:200px;border:1px solid #eee;border-radius:8px" /></div>
+          <p style="font-size:0.78rem;color:#9a9aaa;text-align:center;margin-bottom:16px">Can't scan? Enter this key manually: <code id="manualSecret" style="background:#f5f5f5;padding:2px 6px;border-radius:4px"></code></p>
+          <p style="font-size:0.85rem;color:#555;margin-bottom:12px">2. Enter the 6-digit code it shows:</p>
+          <input class="form-input" id="confirmCode" placeholder="123456" maxlength="6" style="text-align:center;font-size:1.5rem;letter-spacing:8px;margin-bottom:14px" inputmode="numeric" />
+          <button class="btn btn-primary btn-sm" onclick="confirmSetup()">Confirm & Enable</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelSetup()">Cancel</button>
+        </div>
+
+        <div id="enabledState" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+            <span class="badge badge-approved">Enabled</span>
+          </div>
+          <p style="font-size:0.85rem;color:#555;margin-bottom:12px">Enter your password to disable 2FA:</p>
+          <input class="form-input" id="disablePassword" type="password" placeholder="Current password" style="margin-bottom:12px" />
+          <button class="btn btn-danger btn-sm" onclick="disable2FA()">Disable 2FA</button>
+        </div>
+
+        <div id="secResult" style="font-size:0.85rem;margin-top:14px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!await requireAuth()) return;
+    renderAdminLayout('/admin-security.html');
+    loadStatus();
+  });
+
+  async function loadStatus() {
+    try {
+      const data = await adminFetch('/auth/2fa/status');
+      document.getElementById('statusLoading').style.display = 'none';
+      document.getElementById(data.enabled ? 'enabledState' : 'disabledState').style.display = '';
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function startSetup() {
+    try {
+      const data = await adminFetch('/auth/2fa/setup', { method: 'POST' });
+      document.getElementById('qrImage').src = data.qrDataUrl;
+      document.getElementById('manualSecret').textContent = data.secret;
+      document.getElementById('disabledState').style.display = 'none';
+      document.getElementById('setupState').style.display = '';
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function cancelSetup() {
+    document.getElementById('setupState').style.display = 'none';
+    document.getElementById('disabledState').style.display = '';
+  }
+
+  async function confirmSetup() {
+    const code = document.getElementById('confirmCode').value.trim();
+    if (!code) { showToast('Enter the code from your app', 'error'); return; }
+    try {
+      await adminFetch('/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+      showToast('2FA enabled!', 'success');
+      document.getElementById('setupState').style.display = 'none';
+      document.getElementById('enabledState').style.display = '';
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function disable2FA() {
+    const password = document.getElementById('disablePassword').value;
+    if (!password) { showToast('Enter your password', 'error'); return; }
+    if (!confirmAction('Disable two-factor authentication?')) return;
+    try {
+      await adminFetch('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password }) });
+      showToast('2FA disabled', 'success');
+      document.getElementById('enabledState').style.display = 'none';
+      document.getElementById('disabledState').style.display = '';
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+var mb=document.querySelector(".menu-btn,.hamburger-btn,[onclick*=sidebar],[onclick*=menu]");if(mb)mb.onclick=openSidebar;
+</script>
+</body>
+</html>

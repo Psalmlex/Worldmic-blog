@@ -3,11 +3,26 @@ const router = express.Router();
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { authenticator } = require('otplib');
+const QRCode = require('qrcode');
 const auth = require('../middleware/auth');
-const { StaffUser, Inquiry } = require('../models/Models');
+const { StaffUser, Inquiry, Settings } = require('../models/Models');
 
 function genCode() { return String(Math.floor(100000 + Math.random() * 900000)); }
 function genToken() { return crypto.randomBytes(24).toString('hex'); }
+
+function isEnvAdmin(username) {
+  const envUser = process.env.ADMIN_USERNAME || 'admin';
+  return username === envUser;
+}
+
+async function getSetting(key) {
+  const doc = await Settings.findOne({ key });
+  return doc?.value;
+}
+async function setSetting(key, value) {
+  await Settings.findOneAndUpdate({ key }, { key, value }, { upsert: true });
+}
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -18,6 +33,8 @@ router.post('/login', async (req, res) => {
 
     // The single super-admin account, defined via environment variables
     if (username === envUser && password === envPass) {
+      const twoFactorEnabled = (await getSetting('envAdminTwoFactorEnabled')) === 'true';
+      if (twoFactorEnabled) return res.json({ requires2FA: true, username });
       const token = jwt.sign({ username, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '24h' });
       return res.json({ token, message: 'Login successful', role: 'admin', username });
     }
@@ -28,7 +45,35 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, staff.passwordHash);
     if (!match) return res.status(401).json({ error: 'Invalid credentials' });
     if (!staff.emailVerified) return res.status(403).json({ error: 'Please verify your email before logging in.', needsVerification: true, username: staff.username });
+    if (staff.twoFactorEnabled) return res.json({ requires2FA: true, username: staff.username });
 
+    const token = jwt.sign({ username: staff.username, role: staff.role, staffId: staff._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, message: 'Login successful', role: staff.role, username: staff.username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Second step of login when 2FA is enabled — verify the 6-digit app code and issue the real token
+router.post('/login-2fa', async (req, res) => {
+  try {
+    const { username, code } = req.body;
+    if (!username || !code) return res.status(400).json({ error: 'Missing code' });
+
+    if (isEnvAdmin(username)) {
+      const secret = await getSetting('envAdminTwoFactorSecret');
+      if (!secret || !authenticator.verify({ token: String(code).trim(), secret })) {
+        return res.status(401).json({ error: 'Invalid authenticator code' });
+      }
+      const token = jwt.sign({ username, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '24h' });
+      return res.json({ token, message: 'Login successful', role: 'admin', username });
+    }
+
+    const staff = await StaffUser.findOne({ username: username.toLowerCase().trim() });
+    if (!staff || !staff.twoFactorSecret) return res.status(401).json({ error: 'Invalid authenticator code' });
+    if (!authenticator.verify({ token: String(code).trim(), secret: staff.twoFactorSecret })) {
+      return res.status(401).json({ error: 'Invalid authenticator code' });
+    }
     const token = jwt.sign({ username: staff.username, role: staff.role, staffId: staff._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, message: 'Login successful', role: staff.role, username: staff.username });
   } catch (err) {
@@ -45,6 +90,84 @@ router.get('/verify', (req, res) => {
   } catch {
     res.status(401).json({ valid: false });
   }
+});
+
+// ======= TWO-FACTOR AUTHENTICATION (Google Authenticator / any TOTP app) =======
+// Works for both self-signed-up/admin-created staff accounts AND the env-based super-admin.
+
+router.get('/2fa/status', auth, async (req, res) => {
+  try {
+    if (isEnvAdmin(req.admin.username)) {
+      return res.json({ enabled: (await getSetting('envAdminTwoFactorEnabled')) === 'true' });
+    }
+    const staff = await StaffUser.findOne({ username: req.admin.username });
+    res.json({ enabled: !!staff?.twoFactorEnabled });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Step 1: generate a secret + QR code to scan, but don't enable yet
+router.post('/2fa/setup', auth, async (req, res) => {
+  try {
+    const secret = authenticator.generateSecret();
+    const otpauthUrl = authenticator.keyuri(req.admin.username, 'World Mic', secret);
+    const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
+
+    if (isEnvAdmin(req.admin.username)) {
+      await setSetting('envAdminTwoFactorPendingSecret', secret);
+    } else {
+      await StaffUser.findOneAndUpdate({ username: req.admin.username }, { twoFactorPendingSecret: secret });
+    }
+    res.json({ qrDataUrl, secret });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Step 2: confirm setup by entering a code from the app once
+router.post('/2fa/enable', auth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (isEnvAdmin(req.admin.username)) {
+      const pending = await getSetting('envAdminTwoFactorPendingSecret');
+      if (!pending || !authenticator.verify({ token: String(code).trim(), secret: pending })) {
+        return res.status(400).json({ error: 'Incorrect code — try again' });
+      }
+      await setSetting('envAdminTwoFactorSecret', pending);
+      await setSetting('envAdminTwoFactorEnabled', 'true');
+      await setSetting('envAdminTwoFactorPendingSecret', '');
+      return res.json({ message: '2FA enabled!' });
+    }
+
+    const staff = await StaffUser.findOne({ username: req.admin.username });
+    if (!staff?.twoFactorPendingSecret || !authenticator.verify({ token: String(code).trim(), secret: staff.twoFactorPendingSecret })) {
+      return res.status(400).json({ error: 'Incorrect code — try again' });
+    }
+    staff.twoFactorSecret = staff.twoFactorPendingSecret;
+    staff.twoFactorPendingSecret = '';
+    staff.twoFactorEnabled = true;
+    await staff.save();
+    res.json({ message: '2FA enabled!' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Disable — requires re-entering the current password as confirmation
+router.post('/2fa/disable', auth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (isEnvAdmin(req.admin.username)) {
+      const envPass = process.env.ADMIN_PASSWORD || 'WorldMic2025!';
+      if (password !== envPass) return res.status(401).json({ error: 'Incorrect password' });
+      await setSetting('envAdminTwoFactorEnabled', 'false');
+      await setSetting('envAdminTwoFactorSecret', '');
+      return res.json({ message: '2FA disabled' });
+    }
+    const staff = await StaffUser.findOne({ username: req.admin.username });
+    if (!staff) return res.status(404).json({ error: 'Account not found' });
+    const match = await bcrypt.compare(password || '', staff.passwordHash);
+    if (!match) return res.status(401).json({ error: 'Incorrect password' });
+    staff.twoFactorEnabled = false;
+    staff.twoFactorSecret = '';
+    await staff.save();
+    res.json({ message: '2FA disabled' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ======= STAFF MANAGEMENT (admin only) =======
