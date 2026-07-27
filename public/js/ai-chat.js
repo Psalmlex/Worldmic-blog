@@ -46,6 +46,7 @@ class MicaAI {
       <div id="chatTabContent" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
         <div class="ai-quick-actions">
           <button class="quick-btn" data-action="generate-post">✏️ Write Post</button>
+          <button class="quick-btn" data-action="generate-news-post">📰 News Article</button>
           <button class="quick-btn" data-action="reply-comments">💬 Reply Comments</button>
           <button class="quick-btn" data-action="trending">🔥 Trending</button>
           <button class="quick-btn" data-action="generate-image">🖼️ Gen Image</button>
@@ -65,6 +66,7 @@ class MicaAI {
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="font-size:0.78rem;font-weight:700;color:#7a7a8a;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Content</div>
           <button class="quick-btn" style="text-align:left;border-radius:8px;padding:10px 14px;" data-action="generate-post">✏️ Generate New Post</button>
+          <button class="quick-btn" style="text-align:left;border-radius:8px;padding:10px 14px;" data-action="generate-news-post">📰 Write News Article (researches online)</button>
           <button class="quick-btn" style="text-align:left;border-radius:8px;padding:10px 14px;" data-action="reedit-post">🔄 Re-edit Post by ID</button>
           <button class="quick-btn" style="text-align:left;border-radius:8px;padding:10px 14px;" data-action="generate-image">🖼️ Generate Featured Image</button>
           <div style="font-size:0.78rem;font-weight:700;color:#7a7a8a;text-transform:uppercase;letter-spacing:0.08em;margin:8px 0 4px;">Engagement</div>
@@ -199,20 +201,22 @@ class MicaAI {
   }
 
   async runPendingAction(action, userInput) {
-    if (action === 'generate-post') return this.doGeneratePost(userInput);
+    if (action === 'generate-post') return this.doGeneratePost(userInput, false);
+    if (action === 'generate-news-post') return this.doGeneratePost(userInput, true);
     if (action === 'reedit-post') return this.doReeditPost(userInput);
     if (action === 'generate-image') return this.doGenerateImage(userInput);
     if (action === 'reply-comments') return this.doReplyComments(userInput);
     return this.plainChat(userInput); // fallback safety net
   }
 
-  async doGeneratePost(input) {
+  async doGeneratePost(input, useWebSearch = false) {
     this.showTyping();
     const isUrl = /^https?:\/\/\S+$/i.test(input.trim());
+    if (useWebSearch && !isUrl) this.appendMessage('ai', `🌐 Researching "${input}" online first, then writing — this takes a bit longer…`);
     try {
       const body = isUrl
         ? { sourceUrl: input.trim(), category: 'General', length: 'long' }
-        : { topic: input, category: 'General', length: 'long' };
+        : { topic: input, category: useWebSearch ? 'News' : 'General', length: 'long', useWebSearch };
       const res = await fetch('/api/ai/generate-post', {
         method: 'POST', headers: this.authHeaders(),
         body: JSON.stringify(body)
@@ -230,7 +234,7 @@ class MicaAI {
       if (!createRes.ok) { this.appendMessage('ai', `✅ Article written, but saving as a draft failed: ${created.error || 'unknown error'}<br><br><strong>${p.title}</strong><br>${p.excerpt}`); return; }
 
       let imageNote = '';
-      if (isUrl) {
+      if (isUrl || useWebSearch) {
         this.appendMessage('ai', `✅ Article drafted: <strong>${p.title}</strong><br><br>${p.excerpt}<br><br>Generating a matching image…`);
         this.showTyping();
         try {
@@ -243,7 +247,7 @@ class MicaAI {
           imageNote = imgData.imageUrl ? `<br><br>🖼️ Featured image added.` : `<br><br>(Couldn't generate an image: ${imgData.error || 'unknown error'})`;
         } catch { this.removeTyping(); imageNote = `<br><br>(Image generation failed)`; }
       }
-      this.appendMessage('ai', `${isUrl ? '' : `✅ Draft created: <strong>${p.title}</strong><br><br>${p.excerpt}`}${imageNote}<br><br><a href="/admin-create.html?id=${created._id}" style="color:#2563eb;font-weight:600">Open to review & publish →</a>`);
+      this.appendMessage('ai', `${(isUrl || useWebSearch) ? '' : `✅ Draft created: <strong>${p.title}</strong><br><br>${p.excerpt}`}${imageNote}<br><br><a href="/admin-create.html?id=${created._id}" style="color:#2563eb;font-weight:600">Open to review & publish →</a>`);
     } catch (err) {
       this.removeTyping();
       this.appendMessage('ai', '❌ Connection error while generating the post.');
@@ -334,6 +338,7 @@ class MicaAI {
 
     const prompts = {
       'generate-post': "What topic would you like the article to be about? Or paste a product/article link and I'll research it and write about it (with a matching image).",
+      'generate-news-post': "What's the news topic or current event? I'll search the web for up-to-date information first, then write the article grounded in what's actually happening (with a matching image).",
       'reedit-post': 'Enter the Post ID, optionally followed by instructions — e.g. "64f2a1c9 : make it more concise".',
       'generate-image': 'Describe the image you want. I\'ll generate it and give you a URL to use.',
       'reply-comments': 'I\'ll auto-generate replies for all approved comments awaiting a reply. Type "go ahead" to confirm.',

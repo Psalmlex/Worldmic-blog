@@ -188,47 +188,116 @@ async function fetchUrlContent(url) {
 
 const WORD_TARGETS = { short: '600-800', medium: '1000-1300', long: '1500-2000' };
 
-// ─── Generate blog post content ───────────────────────────────────────────────
+// ─── Web search (Serper.dev) — lets Mica write about actual current events ───
+// Language models only know what's in their training data; they can't know about
+// anything that happened after their cutoff, or truly current news, without this.
+async function webSearch(query) {
+  const apiKey = await getSetting('serperApiKey');
+  if (!apiKey) throw new Error('No web search API key set. Add a Serper.dev key in Admin → Settings → AI Configuration to enable news research.');
+  try {
+    const response = await axios.post('https://google.serper.dev/search', { q: query, num: 8 }, {
+      headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+    });
+    const organic = response.data?.organic || [];
+    const news = response.data?.news || [];
+    const results = [...news, ...organic].slice(0, 8).map(r => ({
+      title: r.title, snippet: r.snippet || '', link: r.link, date: r.date || '',
+    }));
+    if (!results.length) throw new Error('No search results found for that topic');
+    return results;
+  } catch (err) {
+    if (err.response) throw new Error(`Search failed: ${err.response.data?.message || err.response.status}`);
+    throw err;
+  }
+}
+
+function formatSearchResults(results) {
+  return results.map((r, i) => `[${i + 1}] ${r.title}${r.date ? ` (${r.date})` : ''}\n${r.snippet}\nSource: ${r.link}`).join('\n\n');
+}
+
+// ─── Generate blog post content — a real editorial pipeline, not one-shot ────
+// Stage 1: research + outline. Stage 2: write full draft following the outline.
+// Stage 3: heavy rewrite pass — original insight, examples, voice. Stage 4: rhythm/
+// repetition copy-edit + final metadata. Each stage is a separate model call so it
+// can focus on doing one job well, the way a real editorial process works.
+//
 // topic: subject, OR leave blank and pass sourceUrl to write about a fetched page/product
-// length: 'short' | 'medium' | 'long' (default 'long' — full, in-depth, SEO-ready articles)
+// length: 'short' | 'medium' | 'long' (default 'long')
+// useWebSearch: true researches the topic online first (needed for actual current events)
 async function generatePost(topic, tone = '', category = 'General', options = {}) {
-  const { length = 'long', sourceUrl = '' } = options;
+  const { length = 'long', sourceUrl = '', useWebSearch = false } = options;
   const wordTarget = WORD_TARGETS[length] || WORD_TARGETS.long;
   const toneInstruction = tone ? `Write in this personal tone/style: ${tone}` : 'Write in a professional, engaging blog tone.';
 
-  let sourceContext = '';
+  let groundingContext = '';
   let effectiveTopic = topic;
   if (sourceUrl) {
     const fetched = await fetchUrlContent(sourceUrl);
     effectiveTopic = topic || fetched.title || 'the linked page';
-    sourceContext = `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
+    groundingContext += `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
+  }
+  if (useWebSearch) {
+    const results = await webSearch(effectiveTopic);
+    groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
   }
 
-  const system = `You are a senior editorial writer for World Mic with a distinctive voice and real opinions — not a content-mill AI. Your job is to make this read like it was written by a specific, knowledgeable human who has thought hard about this topic, not generated to satisfy a template. ${toneInstruction}
-
-LENGTH: ${wordTarget} words. Every paragraph must earn its place — no padding, no restating the same point in different words to hit a count.
-
-BANNED — these are the exact patterns that make writing scream "AI-generated." Do not use them:
+  const voiceRules = `BANNED — these are the exact patterns that make writing scream "AI-generated." Do not use them:
 - Opening with "In today's fast-paced world," "In today's digital age," "Navigating the world of X can feel overwhelming," or any variant of that throat-clearing setup.
 - Formulaic transition words: "Moreover," "Furthermore," "Additionally," "It's important to note that," "In conclusion," "Overall," "At the end of the day."
-- Hedge-everything balance ("there are pros and cons to consider," "it depends on your individual situation") where a real writer would just take a position.
-- Wrapping nearly every idea in a bullet or numbered list. A human writer mostly writes in paragraphs and only reaches for a list when the content is genuinely a sequence or checklist — steps in order, a short comparison, discrete items to scan. Most of this article should be flowing prose, not stacked lists.
-- Restating the title's premise in the first sentence ("Money mindset is the set of beliefs...").
-- Ending with a generic motivational wrap-up that could close any article on any topic.
+- Hedge-everything balance ("there are pros and cons to consider") where a real writer would just take a position.
+- Wrapping nearly every idea in a bullet or numbered list. Most of the article should be flowing prose — only reach for a list when the content is genuinely a sequence or checklist.
+- Restating the title's premise in the first sentence.
+- A generic motivational wrap-up that could close any article on any topic.`;
 
-REQUIRED — what makes it read as professionally written:
-- Open with something specific: a scene, a sharp claim, a concrete moment, a question that isn't rhetorical filler. Earn the reader's attention in the first sentence, don't announce the topic.
-- Take an actual point of view. Say what you think is true, overrated, underrated, or commonly misunderstood about this topic — and back it with reasoning, not just assertion.
-- Original insight, not repackaged common knowledge. Before writing each section, ask: "would a reasonably informed reader already know this?" If yes, go deeper — explain the mechanism behind why something works, name the tradeoff nobody mentions, or reframe the common advice and explain what it misses.
-- Write like you're explaining this to one specific smart person, not broadcasting to "readers." Vary sentence length — short punchy sentences next to longer ones. Real writing doesn't have uniform rhythm.
-- At least one concrete, vivid scenario worked through in narrative form (not a bullet list of facts about it). Frame invented scenarios as illustrative ("say someone...", "picture...") — never present a fabricated person as a real, verifiable case.
-- Section headings (<h2>, occasional <h3>) should be specific and interesting, not generic labels like "Introduction," "Key Strategies," or "Conclusion."
-- Do NOT invent specific statistics, percentages, studies, or named-organization citations you cannot verify. Use precise language for well-established general principles instead of fake specific numbers with fake sources.
-- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic.
+  // ── Stage 1: Research + Outline ──
+  const outlineSystem = `You are a senior editorial strategist for World Mic, planning an article before it's written. ${toneInstruction}
+Think about what a genuinely informed writer would cover — not the generic angles everyone already uses. For each section, name a SPECIFIC, non-obvious angle: a mechanism, a tradeoff, a counter-intuitive point, or a concrete example — not just a topic label.
+${groundingContext ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}
 
-SEO: Identify 6-10 relevant keywords/phrases a reader might search for this topic, and weave them naturally into the headings and body — never keyword-stuff or list them separately.
+Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 
-Respond using EXACTLY this tagged format, with no other text before, between, or after the tags. Do not use JSON. Do not wrap anything in markdown code fences:
+[THESIS]One or two sentences: the specific, non-obvious point of view this article will take[/THESIS]
+[SECTIONS]
+1. Heading text | the specific angle/insight this section delivers (not a generic label)
+2. Heading text | the specific angle/insight this section delivers
+(continue for 5-7 sections total, in the order they should appear)
+[/SECTIONS]`;
+  const outlineResult = await callAI(outlineSystem, `Plan an article about: ${effectiveTopic}. Category: ${category}. Target length: ${wordTarget} words.${groundingContext}`, 1200);
+  const outlineParsed = parseTaggedResponse(outlineResult, ['THESIS', 'SECTIONS']);
+  const sectionLines = (outlineParsed.SECTIONS || '').split('\n').map(l => l.trim()).filter(l => /^\d+\./.test(l));
+  const outlineText = sectionLines.length
+    ? `Thesis: ${outlineParsed.THESIS}\nSections:\n${sectionLines.join('\n')}`
+    : `Thesis: ${outlineParsed.THESIS || 'A specific, informed take on ' + effectiveTopic}`;
+
+  // ── Stage 2: Write the full draft, section by section, following the outline ──
+  const draftSystem = `You are a senior editorial writer for World Mic writing the full first draft from an approved outline. ${toneInstruction}
+Write each section in full, delivering on the SPECIFIC angle the outline assigned it — don't flatten it back into generic advice.
+${voiceRules}
+- Open with something specific: a scene, a sharp claim, a concrete moment — not an announcement of the topic.
+- At least one concrete, vivid scenario worked through in narrative prose. Frame invented scenarios as illustrative ("say someone...", "picture...") — never as a fabricated real person or verifiable case.
+- Do NOT invent specific statistics, studies, or named-organization citations you cannot verify.
+Target length: ${wordTarget} words total across all sections.
+
+Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, lists only where genuinely warranted) — no tags, no preamble, no markdown fences.`;
+  const draft = await callAI(draftSystem, `Outline to follow:\n${outlineText}\n\nWrite the full article about: ${effectiveTopic}. Category: ${category}.${groundingContext}`, 5000);
+
+  // ── Stage 3: Heavy rewrite — original insight, examples, distinctive voice ──
+  const rewriteSystem = `You are a senior editor doing a heavy rewrite pass on a draft — not proofreading, substantially rewriting weak parts. ${toneInstruction}
+For every paragraph, ask: "would a reasonably informed reader already know this?" If yes, rewrite it to go deeper — the mechanism behind why something works, the overlooked tradeoff, a sharper reframe.
+Add at least one specific example, illustrative scenario, or concrete detail the draft is missing, if it reads generic anywhere.
+Vary sentence rhythm — mix short punchy sentences with longer ones; real writing isn't uniform.
+${voiceRules}
+Do NOT invent specific statistics, studies, or named citations you cannot verify.
+
+Respond with ONLY the rewritten HTML article body — no tags, no preamble, no markdown fences.`;
+  const rewritten = await callAI(rewriteSystem, `Heavily rewrite this draft about "${effectiveTopic}":\n\n${draft}`, 5000);
+
+  // ── Stage 4: Rhythm/repetition copy-edit + final metadata ──
+  const polishSystem = `You are a copy editor doing the final pass on an article: fix rhythm, remove repeated phrases and words (especially repeated sentence openings and transition words), tighten anything wordy. Do not flatten the voice back into generic phrasing.
+The article MUST end with a call-to-action as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic. Add it if missing.
+Then produce metadata for it. Identify 6-10 SEO keywords relevant to this topic and make sure the title/description use the primary one naturally.
+
+Respond using EXACTLY this tagged format, no other text, no JSON, no markdown fences:
 
 [TITLE]A compelling, specific title (no quotation marks, no curly braces)[/TITLE]
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
@@ -236,10 +305,9 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 [SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
 [TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
 [CONTENT]
-Full HTML article body here, mostly flowing prose per the rules above, using <h2>/<h3>/<p> with lists only where genuinely warranted. Aim for ${wordTarget} words.
+The final, polished HTML article body.
 [/CONTENT]`;
-
-  const result = await callAI(system, `Write a genuinely insightful, specifically-voiced article about: ${effectiveTopic}. Category: ${category}. Write it like a human editorial writer with a real point of view, not a generic AI summary of the topic.${sourceContext}`, 6000);
+  const result = await callAI(polishSystem, `Final copy-edit pass on this article about "${effectiveTopic}":\n\n${rewritten}`, 5500);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
@@ -253,8 +321,8 @@ Full HTML article body here, mostly flowing prose per the rules above, using <h2
       tags: parsed.TAGS ? parsed.TAGS.split(',').map(t => t.trim()).filter(Boolean) : [],
     };
   }
-  // Extremely rare fallback if the model ignores the format entirely
-  return { title: topic, content: `<p>${result.replace(/\n/g, '</p><p>')}</p>`, excerpt: result.substring(0, 200), tags: [], seoTitle: topic, seoDescription: '' };
+  // Fallback if the final stage ignored the format — still return the rewritten draft rather than failing
+  return { title: topic, content: ensureCTA(rewritten || draft, effectiveTopic), excerpt: (rewritten || draft).replace(/<[^>]+>/g, '').substring(0, 200), tags: [], seoTitle: topic, seoDescription: '' };
 }
 
 // ─── Re-edit existing post ────────────────────────────────────────────────────
@@ -445,4 +513,4 @@ async function generateFeaturedImage(topic, contextText = '') {
   return { ...result, promptUsed: craftedPrompt };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent };
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent, webSearch };

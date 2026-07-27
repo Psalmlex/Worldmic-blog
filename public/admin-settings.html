@@ -61,7 +61,7 @@
         <!-- AI Configuration -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">🤖 AI Configuration</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
             <div>
               <div style="font-weight:700;font-size:0.85rem;color:#1a1a2e;margin-bottom:10px">Blog Writing & Mica Chat</div>
               <div class="form-group">
@@ -97,6 +97,14 @@
                 <label class="form-label">API Key</label>
                 <input class="form-input" id="imageApiKey" type="password" placeholder="sk-..." autocomplete="off" />
                 <div class="form-hint">Used by Mica's "Generate Featured Image" action. Leave blank to disable image generation.</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:0.85rem;color:#1a1a2e;margin-bottom:10px">🌐 Web Search / News Research</div>
+              <div class="form-group">
+                <label class="form-label">Serper.dev API Key</label>
+                <input class="form-input" id="serperApiKey" type="password" placeholder="Leave blank to disable" autocomplete="off" />
+                <div class="form-hint">Lets Mica research actual current events instead of relying only on what the AI model already knows. Free tier at <a href="https://serper.dev" target="_blank" rel="noopener">serper.dev</a> (2,500 free searches).</div>
               </div>
             </div>
           </div>
@@ -203,7 +211,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -215,7 +223,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;

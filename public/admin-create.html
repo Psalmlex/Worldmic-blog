@@ -77,6 +77,9 @@
                 </select>
               </div>
             </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500;margin-bottom:14px">
+              <input type="checkbox" id="aiUseWebSearch" style="width:auto" /> 🌐 Research this online first (for current events/news — needs a Serper.dev key in Settings)
+            </label>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn btn-primary btn-sm" onclick="aiGeneratePost()" id="aiGenBtn">✨ Generate Full Post</button>
               <button class="btn btn-ghost btn-sm" onclick="aiImprovePost()">🔄 Improve Current Post</button>
@@ -304,12 +307,14 @@
     const tone = document.getElementById('aiTone').value.trim();
     const category = document.getElementById('postCategory').value.trim();
     const length = document.getElementById('aiLength').value;
+    const useWebSearch = document.getElementById('aiUseWebSearch').checked;
     if (!topic && !sourceUrl) { showToast('Enter a topic or paste a link first', 'error'); return; }
     const btn = document.getElementById('aiGenBtn');
     btn.disabled = true;
     document.getElementById('aiProgress').style.display = '';
+    showToast('Researching, outlining, drafting, and editing — this takes a bit longer than before…', 'info');
     try {
-      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category, length, sourceUrl }) });
+      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category, length, sourceUrl, useWebSearch }) });
       const post = data.postData;
       document.getElementById('postTitle').value = post.title || '';
       document.getElementById('postContent').innerHTML = post.content || '';
