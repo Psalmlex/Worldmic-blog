@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const connectDB = require('../config/db');
 const { Settings } = require('./models/Models');
+const Post = require('./models/Post');
 
 const app = express();
 connectDB();
@@ -52,6 +53,40 @@ app.get('/ads.txt', async (req, res) => {
     res.send(`google.com, pub-${clientId}, DIRECT, f08c47fec0942fa0`);
   } catch (err) {
     res.status(500).send('# error');
+  }
+});
+
+// robots.txt — tells crawlers what to index and where the sitemap is
+app.get('/robots.txt', (req, res) => {
+  const base = `${req.protocol}://${req.get('host')}`;
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /admin-
+Disallow: /api/
+
+Sitemap: ${base}/sitemap.xml`);
+});
+
+// sitemap.xml — auto-generated from every published post + static pages, so Google discovers new content automatically
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const base = `${req.protocol}://${req.get('host')}`;
+    const posts = await Post.find({ status: 'published' }).select('slug _id updatedAt').sort({ updatedAt: -1 });
+    const staticPages = ['', '/category.html', '/search.html', '/about.html', '/join-team.html', '/partner.html'];
+
+    const urls = [
+      ...staticPages.map(p => `  <url><loc>${base}${p}</loc><changefreq>daily</changefreq><priority>${p === '' ? '1.0' : '0.6'}</priority></url>`),
+      ...posts.map(p => `  <url><loc>${base}/post.html?id=${p._id}</loc><lastmod>${new Date(p.updatedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
+    ];
+
+    res.type('application/xml');
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.join('\n')}
+</urlset>`);
+  } catch (err) {
+    res.status(500).type('text/plain').send('Error generating sitemap');
   }
 });
 
