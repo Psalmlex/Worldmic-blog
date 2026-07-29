@@ -26,10 +26,10 @@ router.post('/command', auth, async (req, res) => {
 
 // Generate a new post
 router.post('/generate-post', auth, async (req, res) => {
-  const { topic, tone, category, length, sourceUrl, useWebSearch } = req.body;
+  const { topic, tone, category, length, sourceUrl, useWebSearch, contentType, products } = req.body;
   if (!topic && !sourceUrl) return res.status(400).json({ error: 'Provide a topic or a source URL' });
   try {
-    const postData = await ai.generatePost(topic, tone, category, { length, sourceUrl, useWebSearch });
+    const postData = await ai.generatePost(topic, tone, category, { length, sourceUrl, useWebSearch, contentType, products });
     await log('create_post', `Generate post: ${topic || sourceUrl}`, topic || sourceUrl, 'Post generated successfully');
     res.json({ postData, message: 'Post generated successfully. Review and publish.' });
   } catch (err) {
@@ -40,11 +40,11 @@ router.post('/generate-post', auth, async (req, res) => {
 
 // Re-edit post by ID or URL
 router.post('/reedit-post', auth, async (req, res) => {
-  const { postId, instructions } = req.body;
+  const { postId, instructions, contentType } = req.body;
   try {
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    const improved = await ai.reeditPost(post.content, post.title, instructions);
+    const improved = await ai.reeditPost(post.content, post.title, instructions, contentType);
     await log('edit_post', `Reedit post: ${post.title}`, postId, 'Post re-edited');
     res.json({ improved, originalId: postId, message: 'Post improved. Review and save.' });
   } catch (err) {

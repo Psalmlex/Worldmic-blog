@@ -54,19 +54,31 @@
             <div class="form-card-title">🤖 AI Writing Assistant</div>
             <div class="form-row-2">
               <div class="form-group">
-                <label class="form-label">AI Topic / Prompt</label>
-                <input class="form-input" id="aiTopic" placeholder="e.g. Climate change in Africa" />
+                <label class="form-label">Content Type</label>
+                <select class="form-input" id="aiContentType" onchange="toggleProductsField()">
+                  <option value="blog">Blog Post — personal, conversational</option>
+                  <option value="article" selected>Article — analytical, authoritative</option>
+                  <option value="affiliate">Affiliate / Commercial — comparison, conversion-focused</option>
+                  <option value="review">Review — hands-on, verdict-driven</option>
+                  <option value="buyingGuide">Buying Guide — decision factors + recommendations</option>
+                  <option value="news">News — factual, balanced, timely</option>
+                  <option value="opinion">Opinion — persuasive, clearly-labeled argument</option>
+                </select>
               </div>
               <div class="form-group">
-                <label class="form-label">Writing Tone</label>
-                <input class="form-input" id="aiTone" placeholder="e.g. Professional and engaging" />
+                <label class="form-label">AI Topic / Prompt</label>
+                <input class="form-input" id="aiTopic" placeholder="e.g. Best VPNs for Nigerians in 2026" />
               </div>
+            </div>
+            <div class="form-group" id="aiProductsGroup" style="display:none">
+              <label class="form-label">Products to feature <span style="font-weight:400;color:#9a9aaa">(one per line: Name | Affiliate URL | optional notes)</span></label>
+              <textarea class="form-input" id="aiProducts" style="min-height:90px;resize:vertical" placeholder="NordVPN | https://your-affiliate-link.com/nordvpn | Best overall&#10;Surfshark | https://your-affiliate-link.com/surfshark | Best budget option"></textarea>
+              <div class="form-hint">Give real product names + your actual affiliate links — Mica will use these exact links, never invent its own.</div>
             </div>
             <div class="form-row-2">
               <div class="form-group">
-                <label class="form-label">Or paste a link to research & write about</label>
-                <input class="form-input" id="aiSourceUrl" placeholder="https://example.com/product-page" />
-                <div class="form-hint">Leave the topic blank and just paste a link — Mica will read the page and write an article about it.</div>
+                <label class="form-label">Writing Tone</label>
+                <input class="form-input" id="aiTone" placeholder="e.g. Professional and engaging" />
               </div>
               <div class="form-group">
                 <label class="form-label">Article Length</label>
@@ -75,6 +87,13 @@
                   <option value="medium">Medium (~1000-1300 words)</option>
                   <option value="short">Short (~600-800 words)</option>
                 </select>
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">Or paste a link to research & write about</label>
+                <input class="form-input" id="aiSourceUrl" placeholder="https://example.com/product-page" />
+                <div class="form-hint">Leave the topic blank and just paste a link — Mica will read the page and write an article about it.</div>
               </div>
             </div>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500;margin-bottom:14px">
@@ -301,6 +320,20 @@
     else preview.style.display = 'none';
   }
 
+  function toggleProductsField() {
+    const type = document.getElementById('aiContentType').value;
+    document.getElementById('aiProductsGroup').style.display = (type === 'affiliate' || type === 'review' || type === 'buyingGuide') ? '' : 'none';
+  }
+
+  function parseProducts() {
+    const raw = document.getElementById('aiProducts').value.trim();
+    if (!raw) return [];
+    return raw.split('\n').map(line => {
+      const [name, url, notes] = line.split('|').map(s => s?.trim());
+      return name ? { name, url: url || '', notes: notes || '' } : null;
+    }).filter(Boolean);
+  }
+
   async function aiGeneratePost() {
     const topic = document.getElementById('aiTopic').value.trim();
     const sourceUrl = document.getElementById('aiSourceUrl').value.trim();
@@ -308,13 +341,15 @@
     const category = document.getElementById('postCategory').value.trim();
     const length = document.getElementById('aiLength').value;
     const useWebSearch = document.getElementById('aiUseWebSearch').checked;
+    const contentType = document.getElementById('aiContentType').value;
+    const products = parseProducts();
     if (!topic && !sourceUrl) { showToast('Enter a topic or paste a link first', 'error'); return; }
     const btn = document.getElementById('aiGenBtn');
     btn.disabled = true;
     document.getElementById('aiProgress').style.display = '';
     showToast('Researching, outlining, drafting, and editing — this takes a bit longer than before…', 'info');
     try {
-      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category, length, sourceUrl, useWebSearch }) });
+      const data = await adminFetch('/ai/generate-post', { method: 'POST', body: JSON.stringify({ topic, tone, category, length, sourceUrl, useWebSearch, contentType, products }) });
       const post = data.postData;
       document.getElementById('postTitle').value = post.title || '';
       document.getElementById('postContent').innerHTML = post.content || '';
@@ -333,9 +368,10 @@
 
   async function aiImprovePost() {
     if (!isEditing) { showToast('Save the post first, then use improve.', 'info'); return; }
+    const contentType = document.getElementById('aiContentType').value;
     document.getElementById('aiProgress').style.display = '';
     try {
-      const data = await adminFetch('/ai/reedit-post', { method: 'POST', body: JSON.stringify({ postId, instructions: 'Improve SEO, readability and structure' }) });
+      const data = await adminFetch('/ai/reedit-post', { method: 'POST', body: JSON.stringify({ postId, instructions: 'Improve SEO, readability and structure', contentType }) });
       const improved = data.improved;
       document.getElementById('postTitle').value = improved.title || document.getElementById('postTitle').value;
       document.getElementById('postContent').innerHTML = improved.content || '';

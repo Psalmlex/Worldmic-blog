@@ -215,6 +215,47 @@ function formatSearchResults(results) {
   return results.map((r, i) => `[${i + 1}] ${r.title}${r.date ? ` (${r.date})` : ''}\n${r.snippet}\nSource: ${r.link}`).join('\n\n');
 }
 
+// ─── Content types — each gets a distinct voice/structure, all built on the same
+// underlying quality engine below. This is what lets World Mic serve readers at every
+// stage: informational (blog/article/news) through purchase-ready (affiliate/review/buying guide).
+const CONTENT_TYPES = {
+  blog: { label: 'Blog Post', voice: 'Personal, conversational, engaging — like a knowledgeable friend sharing what they\'ve actually learned. First person is welcome and often best. Practical, relatable, a little informal.' },
+  article: { label: 'Article', voice: 'Analytical, authoritative, well-researched. Builds credibility and trust through real depth on the subject, not just coverage of it.' },
+  affiliate: { label: 'Affiliate / Commercial Content', voice: 'Product-focused, comparison-driven, conversion-oriented — written to genuinely help a reader choose between real options. Honest pros and cons for each option, pricing context, who each one is actually best for, and a clear final recommendation. This is commercial content, but it should read as more useful and honest than a typical listicle, not less.' },
+  news: { label: 'News', voice: 'Factual, balanced, timely. Lead with the single most important fact. Report what happened and why it matters — this is not the place for a personal narrative voice or editorializing.' },
+  review: { label: 'Review', voice: 'Hands-on and experience-focused. Specific strengths and weaknesses, not a generic feature list. A clear verdict, and clarity on who it is (and isn\'t) right for.' },
+  buyingGuide: { label: 'Buying Guide', voice: 'Practical and recommendation-focused. Explain the real decision factors a buyer should weigh before purchasing, then recommend specific options for different needs and budgets.' },
+  opinion: { label: 'Opinion', voice: 'Persuasive and evidence-based, clearly framed as one person\'s argued position — not neutral reporting. State a real stance and defend it with reasoning.' },
+};
+
+// ─── The Human Writing Engine — universal quality principles for every content type ──
+// The goal is not to evade AI-detection; it's to produce writing that's genuinely useful,
+// original, and well-edited. Quality writing naturally reads as human — that's the target.
+const HUMAN_ENGINE_RULES = `CLICHÉS TO AVOID — the exact tells of low-effort AI writing. Do not use:
+"In today's world," "In today's fast-paced world," "It is important to note that," "As we have seen," "transformative," "navigate" (as in "navigate this landscape"), "delve into," "journey" (as a metaphor for a process), "unlock," "furthermore," "moreover," "additionally," "in conclusion," "overall," "at the end of the day."
+
+CORE PRINCIPLES:
+- Clear author voice: write like an experienced, specific writer, not an encyclopedia entry.
+- Compelling hook: open with a story, a surprising fact, a real question, a real-world scenario, or a bold observation — never a dictionary-style definition ("X is a concept that...").
+- Show, don't just tell: use examples, situations, and concrete observations instead of only explaining ideas abstractly.
+- Be specific: concrete detail beats vague generalization. Not "many people struggle with money" but "a freelancer with a steady income can still panic every month because irregular cash flow was never something they learned to plan around."
+- Sound natural: vary sentence length, paragraph length, vocabulary, and pacing. Avoid repetitive sentence patterns — don't start three paragraphs the same way.
+- Original insight: don't just summarize information the reader could get anywhere; connect ideas, offer a genuine angle.
+- Explain why, not only what: don't stop at advice or a fact — explain the mechanism behind why it's true or why it works.
+- Use evidence naturally: where real evidence is available (from research context provided below), integrate statistics, expert framing, historical context, or real examples smoothly into the prose, not as a bare list. Never invent specific numbers, studies, or named sources you cannot verify — use well-established general principles instead when no real evidence is available.
+- Avoid repetition: no repeated ideas, phrases, keywords, or transitions across the piece.
+- Natural transitions: each paragraph should grow out of the one before it, not jump abruptly.
+- Balance emotion and logic: mix fact, feeling, reasoning, and story rather than staying purely clinical.
+- Quality over word count: never pad to hit a length target — every paragraph must introduce a new idea, support an argument, or move the piece forward.
+- End with impact: reinforce the real takeaway in the closing line, not a generic "leave a comment" or "share this" close.
+- Mostly flowing prose — only reach for a bullet/numbered list when the content is genuinely a sequence, comparison, or scannable checklist (this is more common in Affiliate/Review/Buying Guide content than Blog/Article/News/Opinion).`;
+
+function affiliateProductBlock(products) {
+  if (!products || !products.length) return '';
+  const lines = products.map(p => `- ${p.name}${p.url ? ` — link exactly to: ${p.url}` : ''}${p.notes ? ` (notes: ${p.notes})` : ''}`).join('\n');
+  return `\n\nPRODUCTS TO FEATURE (use these exact names; when linking, use <a href="URL">Name</a> with the EXACT URL given — never invent a different URL or a different product):\n${lines}`;
+}
+
 // ─── Generate blog post content — a real editorial pipeline, not one-shot ────
 // Stage 1: research + outline. Stage 2: write full draft following the outline.
 // Stage 3: heavy rewrite pass — original insight, examples, voice. Stage 4: rhythm/
@@ -224,10 +265,13 @@ function formatSearchResults(results) {
 // topic: subject, OR leave blank and pass sourceUrl to write about a fetched page/product
 // length: 'short' | 'medium' | 'long' (default 'long')
 // useWebSearch: true researches the topic online first (needed for actual current events)
+// contentType: 'blog' | 'article' | 'affiliate' | 'news' | 'review' | 'buyingGuide' | 'opinion'
+// products: optional array of {name, url, notes} for affiliate/review/buyingGuide content
 async function generatePost(topic, tone = '', category = 'General', options = {}) {
-  const { length = 'long', sourceUrl = '', useWebSearch = false } = options;
+  const { length = 'long', sourceUrl = '', useWebSearch = false, contentType = 'article', products = [] } = options;
   const wordTarget = WORD_TARGETS[length] || WORD_TARGETS.long;
-  const toneInstruction = tone ? `Write in this personal tone/style: ${tone}` : 'Write in a professional, engaging blog tone.';
+  const typeConfig = CONTENT_TYPES[contentType] || CONTENT_TYPES.article;
+  const toneInstruction = tone ? `Personal tone/style on top of that: ${tone}` : '';
 
   let groundingContext = '';
   let effectiveTopic = topic;
@@ -240,29 +284,24 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     const results = await webSearch(effectiveTopic);
     groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
   }
-
-  const voiceRules = `BANNED — these are the exact patterns that make writing scream "AI-generated." Do not use them:
-- Opening with "In today's fast-paced world," "In today's digital age," "Navigating the world of X can feel overwhelming," or any variant of that throat-clearing setup.
-- Formulaic transition words: "Moreover," "Furthermore," "Additionally," "It's important to note that," "In conclusion," "Overall," "At the end of the day."
-- Hedge-everything balance ("there are pros and cons to consider") where a real writer would just take a position.
-- Wrapping nearly every idea in a bullet or numbered list. Most of the article should be flowing prose — only reach for a list when the content is genuinely a sequence or checklist.
-- Restating the title's premise in the first sentence.
-- A generic motivational wrap-up that could close any article on any topic.`;
+  const productBlock = affiliateProductBlock(products);
 
   // ── Stage 1: Research + Outline ──
-  const outlineSystem = `You are a senior editorial strategist for World Mic, planning an article before it's written. ${toneInstruction}
-Think about what a genuinely informed writer would cover — not the generic angles everyone already uses. For each section, name a SPECIFIC, non-obvious angle: a mechanism, a tradeoff, a counter-intuitive point, or a concrete example — not just a topic label.
-${groundingContext ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}
+  const outlineSystem = `You are a senior editorial strategist for World Mic, planning a piece of content before it's written.
+CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
+${toneInstruction}
+Plan sections that fit this content type. For Blog/Article/News/Opinion, name a SPECIFIC angle per section (a mechanism, a tradeoff, a counter-intuitive point) — not a generic label. For Affiliate/Review/Buying Guide, structure around genuine decision factors, honest comparison points, and a clear verdict/recommendation section.
+${groundingContext ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}${productBlock}
 
 Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 
-[THESIS]One or two sentences: the specific, non-obvious point of view this article will take[/THESIS]
+[THESIS]One or two sentences: the specific point of view, angle, or recommendation this piece will land on[/THESIS]
 [SECTIONS]
-1. Heading text | the specific angle/insight this section delivers (not a generic label)
-2. Heading text | the specific angle/insight this section delivers
+1. Heading text | the specific angle/purpose this section delivers (not a generic label)
+2. Heading text | the specific angle/purpose this section delivers
 (continue for 5-7 sections total, in the order they should appear)
 [/SECTIONS]`;
-  const outlineResult = await callAI(outlineSystem, `Plan an article about: ${effectiveTopic}. Category: ${category}. Target length: ${wordTarget} words.${groundingContext}`, 1200);
+  const outlineResult = await callAI(outlineSystem, `Plan ${typeConfig.label.toLowerCase()} content about: ${effectiveTopic}. Category: ${category}. Target length: ${wordTarget} words.${groundingContext}${productBlock}`, 1200);
   const outlineParsed = parseTaggedResponse(outlineResult, ['THESIS', 'SECTIONS']);
   const sectionLines = (outlineParsed.SECTIONS || '').split('\n').map(l => l.trim()).filter(l => /^\d+\./.test(l));
   const outlineText = sectionLines.length
@@ -270,31 +309,34 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
     : `Thesis: ${outlineParsed.THESIS || 'A specific, informed take on ' + effectiveTopic}`;
 
   // ── Stage 2: Write the full draft, section by section, following the outline ──
-  const draftSystem = `You are a senior editorial writer for World Mic writing the full first draft from an approved outline. ${toneInstruction}
-Write each section in full, delivering on the SPECIFIC angle the outline assigned it — don't flatten it back into generic advice.
-${voiceRules}
-- Open with something specific: a scene, a sharp claim, a concrete moment — not an announcement of the topic.
-- At least one concrete, vivid scenario worked through in narrative prose. Frame invented scenarios as illustrative ("say someone...", "picture...") — never as a fabricated real person or verifiable case.
-- Do NOT invent specific statistics, studies, or named-organization citations you cannot verify.
+  const draftSystem = `You are a senior writer for World Mic writing the full first draft from an approved outline.
+CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
+${toneInstruction}
+Write each section in full, delivering on the specific angle/purpose the outline assigned it — don't flatten it back into generic exposition.
+${HUMAN_ENGINE_RULES}
+${contentType === 'affiliate' || contentType === 'review' || contentType === 'buyingGuide'
+    ? '- Give honest pros AND cons for each option — genuine usefulness beats one-sided pitching. State pricing context and who each option is actually best for. End with a clear, specific recommendation, not a vague "it depends."'
+    : '- At least one concrete, vivid scenario worked through in narrative prose. Frame invented scenarios as illustrative ("say someone...", "picture...") — never as a fabricated real person or verifiable case.'}
 Target length: ${wordTarget} words total across all sections.
 
-Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, lists only where genuinely warranted) — no tags, no preamble, no markdown fences.`;
-  const draft = await callAI(draftSystem, `Outline to follow:\n${outlineText}\n\nWrite the full article about: ${effectiveTopic}. Category: ${category}.${groundingContext}`, 5000);
+Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, and <ul>/<li> or a comparison table where genuinely useful for this content type) — no tags, no preamble, no markdown fences.`;
+  const draft = await callAI(draftSystem, `Outline to follow:\n${outlineText}\n\nWrite the full ${typeConfig.label.toLowerCase()} about: ${effectiveTopic}. Category: ${category}.${groundingContext}${productBlock}`, 5000);
 
   // ── Stage 3: Heavy rewrite — original insight, examples, distinctive voice ──
-  const rewriteSystem = `You are a senior editor doing a heavy rewrite pass on a draft — not proofreading, substantially rewriting weak parts. ${toneInstruction}
+  const rewriteSystem = `You are a senior editor doing a heavy rewrite pass on a draft — not proofreading, substantially rewriting weak parts.
+CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 For every paragraph, ask: "would a reasonably informed reader already know this?" If yes, rewrite it to go deeper — the mechanism behind why something works, the overlooked tradeoff, a sharper reframe.
-Add at least one specific example, illustrative scenario, or concrete detail the draft is missing, if it reads generic anywhere.
-Vary sentence rhythm — mix short punchy sentences with longer ones; real writing isn't uniform.
-${voiceRules}
-Do NOT invent specific statistics, studies, or named citations you cannot verify.
+Check across the whole piece: are the same 2-3 ideas being repeated reworded in multiple sections? If so, cut the repetition and replace it with something new in each place.
+Replace any generic statement with a specific, concrete example — scan for sentences that could appear unchanged in any other piece on this topic and make them specific to this one.
+${HUMAN_ENGINE_RULES}
+${productBlock}
 
 Respond with ONLY the rewritten HTML article body — no tags, no preamble, no markdown fences.`;
   const rewritten = await callAI(rewriteSystem, `Heavily rewrite this draft about "${effectiveTopic}":\n\n${draft}`, 5000);
 
   // ── Stage 4: Rhythm/repetition copy-edit + final metadata ──
-  const polishSystem = `You are a copy editor doing the final pass on an article: fix rhythm, remove repeated phrases and words (especially repeated sentence openings and transition words), tighten anything wordy. Do not flatten the voice back into generic phrasing.
-The article MUST end with a call-to-action as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic. Add it if missing.
+  const polishSystem = `You are a copy editor doing the final human-editing pass on a piece of ${typeConfig.label.toLowerCase()} content: remove filler, improve flow, vary wording, shorten weak sentences, improve rhythm, eliminate redundancy. Remove repeated phrases and words (especially repeated sentence openings and transition words). Do not flatten the voice back into generic phrasing.
+The piece MUST end with a specific, high-impact closing line as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific closing line here.</strong></p> — it should reinforce the real takeaway of THIS piece, not a generic "leave a comment" or "share this" close. Add it if missing.
 Then produce metadata for it. Identify 6-10 SEO keywords relevant to this topic and make sure the title/description use the primary one naturally.
 
 Respond using EXACTLY this tagged format, no other text, no JSON, no markdown fences:
@@ -307,7 +349,7 @@ Respond using EXACTLY this tagged format, no other text, no JSON, no markdown fe
 [CONTENT]
 The final, polished HTML article body.
 [/CONTENT]`;
-  const result = await callAI(polishSystem, `Final copy-edit pass on this article about "${effectiveTopic}":\n\n${rewritten}`, 5500);
+  const result = await callAI(polishSystem, `Final human-editing pass on this ${typeConfig.label.toLowerCase()} piece about "${effectiveTopic}":\n\n${rewritten}`, 5500);
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
@@ -326,25 +368,20 @@ The final, polished HTML article body.
 }
 
 // ─── Re-edit existing post ────────────────────────────────────────────────────
-async function reeditPost(existingContent, existingTitle, instructions = '') {
-  const system = `You are a senior editor for World Mic, rewriting a draft that reads like generic AI output into something with a real editorial voice — not just polishing sentences. ${instructions ? 'Special instructions: ' + instructions : ''}
+async function reeditPost(existingContent, existingTitle, instructions = '', contentType = 'article') {
+  const typeConfig = CONTENT_TYPES[contentType] || CONTENT_TYPES.article;
+  const system = `You are a senior editor for World Mic, rewriting a draft that reads like generic AI output into something with a real editorial voice — not just polishing sentences.
+CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
+${instructions ? 'Special instructions: ' + instructions : ''}
 
-BANNED — remove these if present, they're what makes writing read as AI-generated:
-- Throat-clearing openers ("In today's fast-paced world...", "Navigating X can feel overwhelming...").
-- Formulaic transitions: "Moreover," "Furthermore," "Additionally," "It's important to note that," "In conclusion," "Overall."
-- Wrapping nearly every point in a bullet list. Most of the piece should be flowing prose — only use lists for genuine sequences or scannable checklists.
-- Hedge-everything balance instead of taking an actual position.
-- A generic motivational closing that could end any article on any topic.
+${HUMAN_ENGINE_RULES}
 
-REQUIRED:
-- Rewrite the opening to hook with something specific — a scene, a sharp claim, a concrete detail — not an announcement of the topic.
-- Push past common-knowledge advice. Where the draft states something a reasonably informed reader already knows, add the reasoning, the mechanism, or the overlooked tradeoff behind it.
-- Vary sentence rhythm — short and long sentences mixed, not uniform.
-- Add at least one concrete scenario worked through in narrative prose (not a bulleted list of facts about it) if the draft doesn't already have one. Frame it as illustrative ("say someone...") — never as a fabricated real case.
+ADDITIONAL REWRITE-SPECIFIC RULES:
+- Rewrite the opening to hook with something specific — a scene, a sharp claim, a concrete detail — not an announcement of the topic. State the concrete subject directly, don't circle it vaguely.
+- Push past common-knowledge advice already in the draft — add the reasoning, the mechanism, or the overlooked tradeoff behind it.
+- Add at least one concrete scenario worked through in narrative prose if the draft doesn't already have one. Frame it as illustrative ("say someone...") — never as a fabricated real case.
 - Give section headings specific, interesting phrasing instead of generic labels like "Introduction" or "Conclusion."
-- Do NOT invent specific statistics, studies, or named-organization citations you cannot verify. Use general, well-established principles instead of fake specific numbers.
-- The article MUST end with a call-to-action paragraph as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific, concrete next step here.</strong></p> — tied to this specific topic, not generic.
-- Naturally weave in relevant SEO keywords for the topic through the headings and body.
+- The piece MUST end with a specific, high-impact closing line as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific closing line here.</strong></p> — tied to what this piece actually explored, not generic.
 - Aim for at least 1200 words in the improved version unless the topic is too narrow to responsibly support that without padding.
 
 Respond using EXACTLY this tagged format, with no other text before, between, or after the tags. Do not use JSON. Do not wrap anything in markdown code fences:
