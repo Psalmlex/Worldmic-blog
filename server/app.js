@@ -12,6 +12,44 @@ connectDB();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Must come BEFORE express.static so it can intercept /post.html and inject real
+// per-post meta tags — social media crawlers (Facebook, Twitter, WhatsApp, LinkedIn)
+// don't execute JavaScript, so without this every shared post link shows generic
+// "World Mic" info instead of that post's actual title/image/description.
+app.get('/post.html', async (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const postId = req.query.id;
+    const filePath = path.join(__dirname, '../public/post.html');
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    let title = 'World Mic';
+    let description = 'A multi-category blog covering news, culture, tech, and more.';
+    let image = `${req.protocol}://${req.get('host')}/images/app-icon.svg`;
+    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+    if (postId) {
+      const post = await Post.findById(postId).select('title excerpt seoTitle seoDescription featuredImage').catch(() => null);
+      if (post) {
+        title = `${post.seoTitle || post.title || 'World Mic'} — World Mic`;
+        description = post.seoDescription || post.excerpt || description;
+        image = post.featuredImage || image;
+      }
+    }
+
+    html = html
+      .replace(/__META_TITLE__/g, title.replace(/"/g, '&quot;'))
+      .replace(/__META_DESCRIPTION__/g, description.replace(/"/g, '&quot;'))
+      .replace(/__META_IMAGE__/g, image)
+      .replace(/__META_URL__/g, url);
+
+    res.send(html);
+  } catch (err) {
+    next(); // fall back to the normal static file on any unexpected error
+  }
+});
+
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Routes
