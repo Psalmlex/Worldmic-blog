@@ -504,10 +504,10 @@ async function generateImage(prompt) {
 
     if (!base64 && !imageUrl) return { error: 'Image generation returned no image. Try a different prompt or provider.' };
 
-    const { cloudinary } = require('../../config/cloudinary');
+    const imageHost = require('./imageHostService');
     const source = base64 ? `data:image/png;base64,${base64}` : imageUrl;
-    const upload = await cloudinary.uploader.upload(source, { folder: 'worldmic/ai-generated' });
-    return { url: upload.secure_url };
+    const upload = await imageHost.uploadFromSource(source, `ai-generated-${Date.now()}.png`, 'worldmic/ai-generated');
+    return { url: upload.url };
   } catch (err) {
     const status = err.response?.status;
     const msg = err.response?.data?.error?.message

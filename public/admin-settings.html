@@ -110,6 +110,48 @@
           </div>
         </div>
 
+        <!-- Image Hosting -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">🗄️ Image Hosting (Uploads)</div>
+          <div class="form-hint" style="margin-top:-6px;margin-bottom:14px">Where uploaded featured images and ad banners are stored. This is separate from AI Image Generation above — that creates images; this stores them.</div>
+          <div class="form-group" style="max-width:320px">
+            <label class="form-label">Provider</label>
+            <select class="form-input" id="imageHostProvider" onchange="updateImageHostFields()">
+              <option value="cloudinary">Cloudinary</option>
+              <option value="imagekit">ImageKit.io</option>
+              <option value="uploadcare">Uploadcare</option>
+              <option value="imgbb">ImgBB</option>
+              <option value="custom">Custom API</option>
+            </select>
+          </div>
+
+          <div id="imageHost-cloudinary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+            <div class="form-group"><label class="form-label">Cloud Name</label><input class="form-input" id="cloudinaryCloudName" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="cloudinaryApiKey" type="password" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">API Secret</label><input class="form-input" id="cloudinaryApiSecret" type="password" autocomplete="off" /></div>
+          </div>
+
+          <div id="imageHost-imagekit" style="display:none;grid-template-columns:1fr;gap:16px;max-width:400px">
+            <div class="form-group"><label class="form-label">Private API Key</label><input class="form-input" id="imagekitPrivateKey" type="password" placeholder="private_..." autocomplete="off" /></div>
+          </div>
+
+          <div id="imageHost-uploadcare" style="display:none;grid-template-columns:1fr 1fr;gap:16px;max-width:520px">
+            <div class="form-group"><label class="form-label">Public Key</label><input class="form-input" id="uploadcarePublicKey" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">Secret Key</label><input class="form-input" id="uploadcareSecretKey" type="password" autocomplete="off" /></div>
+          </div>
+
+          <div id="imageHost-imgbb" style="display:none;grid-template-columns:1fr;gap:16px;max-width:400px">
+            <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="imgbbApiKey" type="password" autocomplete="off" /></div>
+          </div>
+
+          <div id="imageHost-custom" style="display:none;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Upload URL</label><input class="form-input" id="customUploadUrl" placeholder="https://your-api.com/upload" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">API Key <span style="font-weight:400;color:#9a9aaa">(optional)</span></label><input class="form-input" id="customUploadApiKey" type="password" placeholder="Sent as Authorization: Bearer …" autocomplete="off" /></div>
+            <div class="form-group"><label class="form-label">Form Field Name</label><input class="form-input" id="customUploadFieldName" placeholder="image" /></div>
+            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Response URL Field</label><input class="form-input" id="customUploadResponseField" placeholder="url (or e.g. data.url)" /><div class="form-hint">Dot-path to the image URL inside the JSON response your API returns after upload.</div></div>
+          </div>
+        </div>
+
         <!-- Email -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">📧 Email / Newsletter</div>
@@ -208,10 +250,19 @@
     loadSettings();
   });
 
+  const IMAGE_HOST_FIELDS = ['imageHostProvider','cloudinaryCloudName','cloudinaryApiKey','cloudinaryApiSecret','imagekitPrivateKey','uploadcarePublicKey','uploadcareSecretKey','imgbbApiKey','customUploadUrl','customUploadApiKey','customUploadFieldName','customUploadResponseField'];
+
+  function updateImageHostFields() {
+    const provider = document.getElementById('imageHostProvider').value;
+    ['cloudinary','imagekit','uploadcare','imgbb','custom'].forEach(p => {
+      document.getElementById('imageHost-' + p).style.display = (p === provider) ? 'grid' : 'none';
+    });
+  }
+
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail', ...IMAGE_HOST_FIELDS];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -219,11 +270,12 @@
       if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
       document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
       document.getElementById('primaryColorHex').addEventListener('input', e => { document.getElementById('primaryColor').value = e.target.value; });
+      updateImageHostFields();
     } catch (err) { showToast('Failed to load settings: ' + err.message, 'error'); }
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail', ...IMAGE_HOST_FIELDS];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;

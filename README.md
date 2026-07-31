@@ -1,6 +1,6 @@
 # 🌍 World Mic — AI-Powered Blog Platform
 
-> Multi-category blog with Groq AI content generation, Cloudinary image hosting, and MongoDB Atlas persistence.
+> Multi-category blog with Groq AI content generation, pluggable image hosting, and MongoDB Atlas persistence.
 
 ---
 
@@ -9,8 +9,11 @@
 | Service | Key / Detail |
 |---------|-------------|
 | **MongoDB Atlas** | `MONGO_URI` in `.env` — already configured |
-| **Groq AI** | `GROQ_API_KEY` in `.env` — powers all AI features |
-| **Cloudinary** | `CLOUDINARY_*` in `.env` — handles image uploads |
+| **Groq AI** | `GROQ_API_KEY` in `.env` — powers all AI features, including the Mica chat widget |
+| **Image Hosting** | Entered in **Admin → Settings → Image Hosting** — not env vars. Choose Cloudinary, ImageKit, Uploadcare, ImgBB, or a Custom API for uploaded featured images/ad banners; `CLOUDINARY_*` in `.env` still works as a fallback if you pick Cloudinary but leave its Settings fields blank. |
+| **Stability AI** (optional) | Entered in **Admin → Settings → AI Image Generation** — not an env var. Powers the "Generate Featured Image" AI action. |
+
+> See `.env.example` for the full list of required environment variables.
 
 ---
 
@@ -25,17 +28,17 @@ worldmic/
 │   │   ├── posts.js            # Blog post CRUD
 │   │   ├── data.js             # Comments, ads, settings
 │   │   ├── ai.js               # AI command endpoints
-│   │   └── upload.js           # Cloudinary image upload ← NEW
+│   │   └── upload.js           # Image upload (any provider) ← UPDATED
 │   ├── services/
-│   │   └── aiService.js        # Groq API wrapper ← UPDATED
+│   │   ├── aiService.js        # Groq API wrapper ← UPDATED
+│   │   └── imageHostService.js # Cloudinary/ImageKit/Uploadcare/ImgBB/Custom ← NEW
 │   ├── models/
 │   │   ├── Post.js
 │   │   └── Models.js
 │   └── middleware/
 │       └── auth.js
 ├── config/
-│   ├── db.js                   # Mongoose connection
-│   └── cloudinary.js           # Cloudinary + multer ← NEW
+│   └── db.js                   # Mongoose connection
 ├── public/                     # Frontend (HTML/CSS/JS)
 ├── .env                        # All secrets (never commit!)
 ├── .gitignore
@@ -168,8 +171,10 @@ git push
 ```
 POST /api/upload/image   — upload featured image (returns { url, public_id })
 POST /api/upload/ad      — upload ad banner image
-DELETE /api/upload/:id   — delete image from Cloudinary
+DELETE /api/upload/:id   — delete image from whichever provider stored it
 ```
+
+Routes through the active provider set in **Admin → Settings → Image Hosting** (Cloudinary, ImageKit, Uploadcare, ImgBB, or Custom API) — no code changes needed to switch.
 
 All endpoints require the admin JWT token in the `Authorization: Bearer <token>` header.
 
@@ -195,11 +200,15 @@ const { url } = await res.json();
 |---------|----------|
 | Natural language admin commands | `POST /api/ai/command` |
 | Generate full blog post | `POST /api/ai/generate-post` |
-| Re-edit existing post | `POST /api/ai/reedit` |
-| Auto-reply to comment | `POST /api/ai/reply-comment` |
-| Trending topic suggestions | `POST /api/ai/trending` |
+| Re-edit existing post | `POST /api/ai/reedit-post` |
+| Auto-reply to comments | `POST /api/ai/reply-comments` |
+| Trending topic suggestions | `GET /api/ai/trending` |
+| Chat with Mica (assistant widget) | `POST /api/ai/chat` |
+| Generate a featured image | `POST /api/ai/generate-image` |
 
-Model: **llama-3.3-70b-versatile** via Groq (fast, free tier available)
+Model: **llama-3.3-70b-versatile** via Groq (fast, free tier available) — this now also powers the Mica chat widget, which previously required a separate (unconfigured) Anthropic key.
+
+Image generation uses **Stability AI**. Add your key in Admin → Settings → AI Image Generation to enable it; leave it blank to disable the feature.
 
 ---
 
@@ -219,9 +228,20 @@ npm run dev
 
 ---
 
+## 🆕 Recent Updates
+
+- **Fixed:** the Mica chat widget was calling the Anthropic API with no key configured — it now uses Groq like every other AI feature.
+- **Fixed:** AI image generation was a non-functional stub — it now works via Stability AI, with the key set by the admin in-app (Admin → Settings) instead of `.env`.
+- **Fixed:** requesting a post with a malformed ID returned a 500 error instead of a clean 404.
+- **New:** post likes/reactions — visitors can like a post from `post.html` (`POST /api/posts/:id/like`), tracked per-browser via localStorage so the same visitor can't like a post repeatedly.
+- **New:** dark mode — a toggle in the site header switches the whole public site between light/dark themes, saved in `localStorage`.
+- **New:** newsletter signup — a subscribe form in the footer (`POST /api/subscribe`), with a new **Admin → Subscribers** page to view, export (CSV), and remove subscribers.
+
+---
+
 ## ⚠️ Important Notes
 
 - **`.env` is gitignored** — add env vars manually on Render
-- **Render filesystem is ephemeral** — always use Cloudinary for images, never local disk
+- **Render filesystem is ephemeral** — always use a configured image host (Cloudinary/ImageKit/Uploadcare/ImgBB/Custom) for images, never local disk
 - **Free Render tier sleeps after 15 min** — ping `/api/posts` via UptimeRobot to keep it awake
 - **MongoDB Atlas** free tier (M0) = 512 MB storage
