@@ -464,15 +464,19 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 // ─── Image generation (multi-provider: Stability AI, OpenAI DALL-E, OpenRouter) ──
 async function getImageAIConfig() {
   const provider = (await getSetting('imageApiProvider')) || 'stability';
-  const apiKey = await getSetting('imageApiKey');
+  let apiKey = await getSetting('imageApiKey');
+  if (provider === 'webimage') apiKey = await getSetting('serperApiKey'); // reuses the web-search key, not a separate one
   return { provider, apiKey };
 }
 
 async function generateImage(prompt) {
   if (!prompt || !prompt.trim()) return { error: 'Please provide a description for the image.' };
   const { provider, apiKey } = await getImageAIConfig();
-  if (!apiKey) {
-    return { error: 'No image generation API key set. Add one in Admin → Settings → AI Configuration.' };
+  if (!apiKey && provider !== 'pollinations') {
+    const hint = provider === 'webimage'
+      ? 'Add a Serper.dev API key in Admin → Settings → Web Search / News Research.'
+      : 'Add one in Admin → Settings → AI Configuration.';
+    return { error: `No image API key set. ${hint}` };
   }
   try {
     let base64, imageUrl;
@@ -493,6 +497,49 @@ async function generateImage(prompt) {
       if (imgField?.startsWith('data:image')) base64 = imgField.split(',')[1];
       else if (imgField) imageUrl = imgField;
 
+    } else if (provider === 'gemini') {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
+        { contents: [{ parts: [{ text: prompt }] }] },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      const parts = response.data?.candidates?.[0]?.content?.parts || [];
+      base64 = parts.find(p => p.inlineData?.data)?.inlineData?.data;
+
+    } else if (provider === 'replicate') {
+      const create = await axios.post(
+        'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions',
+        { input: { prompt } },
+        { headers: { Authorization: `Token ${apiKey}`, 'Content-Type': 'application/json', Prefer: 'wait' } }
+      );
+      let prediction = create.data;
+      for (let i = 0; i < 20 && prediction.status !== 'succeeded' && prediction.status !== 'failed'; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const poll = await axios.get(prediction.urls.get, { headers: { Authorization: `Token ${apiKey}` } });
+        prediction = poll.data;
+      }
+      if (prediction.status !== 'succeeded') return { error: 'Replicate generation timed out or failed. Try again.' };
+      imageUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+
+    } else if (provider === 'huggingface') {
+      const response = await axios.post(
+        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        { inputs: prompt },
+        { headers: { Authorization: `Bearer ${apiKey}` }, responseType: 'arraybuffer' }
+      );
+      base64 = Buffer.from(response.data).toString('base64');
+
+    } else if (provider === 'pollinations') {
+      imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true`;
+
+    } else if (provider === 'webimage') {
+      // Not AI-generated — finds a real existing photo from the web matching the description
+      const response = await axios.post('https://google.serper.dev/images', { q: prompt }, {
+        headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+      });
+      imageUrl = response.data?.images?.[0]?.imageUrl;
+      if (!imageUrl) return { error: 'No matching web image found for that description. Try different wording.' };
+
     } else { // stability (default)
       const response = await axios.post(
         'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
@@ -504,10 +551,10 @@ async function generateImage(prompt) {
 
     if (!base64 && !imageUrl) return { error: 'Image generation returned no image. Try a different prompt or provider.' };
 
-    const imageHost = require('./imageHostService');
+    const { cloudinary } = require('../../config/cloudinary');
     const source = base64 ? `data:image/png;base64,${base64}` : imageUrl;
-    const upload = await imageHost.uploadFromSource(source, `ai-generated-${Date.now()}.png`, 'worldmic/ai-generated');
-    return { url: upload.url };
+    const upload = await cloudinary.uploader.upload(source, { folder: 'worldmic/ai-generated' });
+    return { url: upload.secure_url };
   } catch (err) {
     const status = err.response?.status;
     const msg = err.response?.data?.error?.message

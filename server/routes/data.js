@@ -121,10 +121,7 @@ router.post('/ads/:id/click', async (req, res) => {
 
 // ======= SETTINGS =======
 const jwt = require('jsonwebtoken');
-const SENSITIVE_SETTINGS_KEYS = [
-  'imageApiKey', 'textAiKey', 'smtpPass', 'brevoApiKey', 'serperApiKey',
-  'cloudinaryApiKey', 'cloudinaryApiSecret', 'imagekitPrivateKey', 'uploadcareSecretKey', 'imgbbApiKey', 'customUploadApiKey',
-];
+const SENSITIVE_SETTINGS_KEYS = ['imageApiKey', 'textAiKey', 'smtpPass', 'brevoApiKey', 'serperApiKey'];
 
 router.get('/settings', async (req, res) => {
   try {

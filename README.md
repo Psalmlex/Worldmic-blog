@@ -1,6 +1,6 @@
 # 🌍 World Mic — AI-Powered Blog Platform
 
-> Multi-category blog with Groq AI content generation, pluggable image hosting, and MongoDB Atlas persistence.
+> Multi-category blog with Groq AI content generation, Cloudinary image hosting, and MongoDB Atlas persistence.
 
 ---
 
@@ -10,8 +10,8 @@
 |---------|-------------|
 | **MongoDB Atlas** | `MONGO_URI` in `.env` — already configured |
 | **Groq AI** | `GROQ_API_KEY` in `.env` — powers all AI features, including the Mica chat widget |
-| **Image Hosting** | Entered in **Admin → Settings → Image Hosting** — not env vars. Choose Cloudinary, ImageKit, Uploadcare, ImgBB, or a Custom API for uploaded featured images/ad banners; `CLOUDINARY_*` in `.env` still works as a fallback if you pick Cloudinary but leave its Settings fields blank. |
-| **Stability AI** (optional) | Entered in **Admin → Settings → AI Image Generation** — not an env var. Powers the "Generate Featured Image" AI action. |
+| **Cloudinary** | `CLOUDINARY_*` in `.env` — handles image uploads |
+| **AI Image Generation** (optional) | Entered in **Admin → Settings → AI Image Generation** — not an env var. Choose from 8 providers (Stability AI, OpenAI DALL-E, OpenRouter, Google Gemini, Replicate, Hugging Face, Pollinations.ai, or Web Image Search) to power the "Generate Featured Image" action. |
 
 > See `.env.example` for the full list of required environment variables.
 
@@ -28,17 +28,17 @@ worldmic/
 │   │   ├── posts.js            # Blog post CRUD
 │   │   ├── data.js             # Comments, ads, settings
 │   │   ├── ai.js               # AI command endpoints
-│   │   └── upload.js           # Image upload (any provider) ← UPDATED
+│   │   └── upload.js           # Cloudinary image upload
 │   ├── services/
-│   │   ├── aiService.js        # Groq API wrapper ← UPDATED
-│   │   └── imageHostService.js # Cloudinary/ImageKit/Uploadcare/ImgBB/Custom ← NEW
+│   │   └── aiService.js        # Groq + multi-provider AI image generation ← UPDATED
 │   ├── models/
 │   │   ├── Post.js
 │   │   └── Models.js
 │   └── middleware/
 │       └── auth.js
 ├── config/
-│   └── db.js                   # Mongoose connection
+│   ├── db.js                   # Mongoose connection
+│   └── cloudinary.js           # Cloudinary + multer
 ├── public/                     # Frontend (HTML/CSS/JS)
 ├── .env                        # All secrets (never commit!)
 ├── .gitignore
@@ -171,10 +171,8 @@ git push
 ```
 POST /api/upload/image   — upload featured image (returns { url, public_id })
 POST /api/upload/ad      — upload ad banner image
-DELETE /api/upload/:id   — delete image from whichever provider stored it
+DELETE /api/upload/:id   — delete image from Cloudinary
 ```
-
-Routes through the active provider set in **Admin → Settings → Image Hosting** (Cloudinary, ImageKit, Uploadcare, ImgBB, or Custom API) — no code changes needed to switch.
 
 All endpoints require the admin JWT token in the `Authorization: Bearer <token>` header.
 
@@ -242,6 +240,6 @@ npm run dev
 ## ⚠️ Important Notes
 
 - **`.env` is gitignored** — add env vars manually on Render
-- **Render filesystem is ephemeral** — always use a configured image host (Cloudinary/ImageKit/Uploadcare/ImgBB/Custom) for images, never local disk
+- **Render filesystem is ephemeral** — always use Cloudinary for images, never local disk
 - **Free Render tier sleeps after 15 min** — ping `/api/posts` via UptimeRobot to keep it awake
 - **MongoDB Atlas** free tier (M0) = 512 MB storage

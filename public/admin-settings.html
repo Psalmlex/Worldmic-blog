@@ -87,16 +87,21 @@
               <div style="font-weight:700;font-size:0.85rem;color:#1a1a2e;margin-bottom:10px">🎨 AI Image Generation</div>
               <div class="form-group">
                 <label class="form-label">Provider</label>
-                <select class="form-input" id="imageApiProvider">
+                <select class="form-input" id="imageApiProvider" onchange="updateImageApiHint()">
                   <option value="stability">Stability AI</option>
                   <option value="openai">OpenAI (DALL-E 3)</option>
-                  <option value="openrouter">OpenRouter</option>
+                  <option value="openrouter">OpenRouter (any model)</option>
+                  <option value="gemini">Google Gemini (direct)</option>
+                  <option value="replicate">Replicate (Flux)</option>
+                  <option value="huggingface">Hugging Face (Flux)</option>
+                  <option value="pollinations">Pollinations.ai (free, no key)</option>
+                  <option value="webimage">Web Image Search (real photo, not AI)</option>
                 </select>
               </div>
               <div class="form-group">
                 <label class="form-label">API Key</label>
                 <input class="form-input" id="imageApiKey" type="password" placeholder="sk-..." autocomplete="off" />
-                <div class="form-hint">Used by Mica's "Generate Featured Image" action. Leave blank to disable image generation.</div>
+                <div class="form-hint" id="imageApiHint">Used by Mica's "Generate Featured Image" action. Leave blank to disable image generation.</div>
               </div>
             </div>
             <div>
@@ -107,48 +112,6 @@
                 <div class="form-hint">Lets Mica research actual current events instead of relying only on what the AI model already knows. Free tier at <a href="https://serper.dev" target="_blank" rel="noopener">serper.dev</a> (2,500 free searches).</div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Image Hosting -->
-        <div class="form-card" style="grid-column:1/-1">
-          <div class="form-card-title">🗄️ Image Hosting (Uploads)</div>
-          <div class="form-hint" style="margin-top:-6px;margin-bottom:14px">Where uploaded featured images and ad banners are stored. This is separate from AI Image Generation above — that creates images; this stores them.</div>
-          <div class="form-group" style="max-width:320px">
-            <label class="form-label">Provider</label>
-            <select class="form-input" id="imageHostProvider" onchange="updateImageHostFields()">
-              <option value="cloudinary">Cloudinary</option>
-              <option value="imagekit">ImageKit.io</option>
-              <option value="uploadcare">Uploadcare</option>
-              <option value="imgbb">ImgBB</option>
-              <option value="custom">Custom API</option>
-            </select>
-          </div>
-
-          <div id="imageHost-cloudinary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
-            <div class="form-group"><label class="form-label">Cloud Name</label><input class="form-input" id="cloudinaryCloudName" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="cloudinaryApiKey" type="password" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">API Secret</label><input class="form-input" id="cloudinaryApiSecret" type="password" autocomplete="off" /></div>
-          </div>
-
-          <div id="imageHost-imagekit" style="display:none;grid-template-columns:1fr;gap:16px;max-width:400px">
-            <div class="form-group"><label class="form-label">Private API Key</label><input class="form-input" id="imagekitPrivateKey" type="password" placeholder="private_..." autocomplete="off" /></div>
-          </div>
-
-          <div id="imageHost-uploadcare" style="display:none;grid-template-columns:1fr 1fr;gap:16px;max-width:520px">
-            <div class="form-group"><label class="form-label">Public Key</label><input class="form-input" id="uploadcarePublicKey" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">Secret Key</label><input class="form-input" id="uploadcareSecretKey" type="password" autocomplete="off" /></div>
-          </div>
-
-          <div id="imageHost-imgbb" style="display:none;grid-template-columns:1fr;gap:16px;max-width:400px">
-            <div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="imgbbApiKey" type="password" autocomplete="off" /></div>
-          </div>
-
-          <div id="imageHost-custom" style="display:none;grid-template-columns:1fr 1fr;gap:16px">
-            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Upload URL</label><input class="form-input" id="customUploadUrl" placeholder="https://your-api.com/upload" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">API Key <span style="font-weight:400;color:#9a9aaa">(optional)</span></label><input class="form-input" id="customUploadApiKey" type="password" placeholder="Sent as Authorization: Bearer …" autocomplete="off" /></div>
-            <div class="form-group"><label class="form-label">Form Field Name</label><input class="form-input" id="customUploadFieldName" placeholder="image" /></div>
-            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Response URL Field</label><input class="form-input" id="customUploadResponseField" placeholder="url (or e.g. data.url)" /><div class="form-hint">Dot-path to the image URL inside the JSON response your API returns after upload.</div></div>
           </div>
         </div>
 
@@ -250,19 +213,29 @@
     loadSettings();
   });
 
-  const IMAGE_HOST_FIELDS = ['imageHostProvider','cloudinaryCloudName','cloudinaryApiKey','cloudinaryApiSecret','imagekitPrivateKey','uploadcarePublicKey','uploadcareSecretKey','imgbbApiKey','customUploadUrl','customUploadApiKey','customUploadFieldName','customUploadResponseField'];
+  const IMAGE_API_HINTS = {
+    stability: 'Used by Mica\'s "Generate Featured Image" action. Leave blank to disable image generation.',
+    openai: 'Your OpenAI API key (sk-...). Used for DALL-E 3 image generation.',
+    openrouter: 'Your OpenRouter API key. Uses a Gemini image-capable model.',
+    gemini: 'Your Google AI Studio API key, used directly against the Gemini API.',
+    replicate: 'Your Replicate API token. Generates via the Flux Schnell model.',
+    huggingface: 'Your Hugging Face access token. Generates via the Flux Schnell model.',
+    pollinations: 'No key needed — Pollinations.ai is free and unauthenticated. Leave blank.',
+    webimage: 'Not used — this option instead uses the Serper.dev API key set below in Web Search / News Research to find a real matching photo instead of generating one.',
+  };
 
-  function updateImageHostFields() {
-    const provider = document.getElementById('imageHostProvider').value;
-    ['cloudinary','imagekit','uploadcare','imgbb','custom'].forEach(p => {
-      document.getElementById('imageHost-' + p).style.display = (p === provider) ? 'grid' : 'none';
-    });
+  function updateImageApiHint() {
+    const provider = document.getElementById('imageApiProvider').value;
+    document.getElementById('imageApiHint').textContent = IMAGE_API_HINTS[provider] || '';
+    const keyField = document.getElementById('imageApiKey');
+    keyField.disabled = (provider === 'pollinations' || provider === 'webimage');
+    keyField.placeholder = keyField.disabled ? 'Not needed for this provider' : 'sk-...';
   }
 
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail', ...IMAGE_HOST_FIELDS];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -270,12 +243,12 @@
       if (s.primaryColor) document.getElementById('primaryColorHex').value = s.primaryColor;
       document.getElementById('primaryColor').addEventListener('input', e => { document.getElementById('primaryColorHex').value = e.target.value; });
       document.getElementById('primaryColorHex').addEventListener('input', e => { document.getElementById('primaryColor').value = e.target.value; });
-      updateImageHostFields();
+      updateImageApiHint();
     } catch (err) { showToast('Failed to load settings: ' + err.message, 'error'); }
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail', ...IMAGE_HOST_FIELDS];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;
