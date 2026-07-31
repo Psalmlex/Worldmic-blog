@@ -220,27 +220,6 @@ function postCardHTML(post) {
 // ===== ADSENSE =====
 let _adsenseScriptLoaded = false;
 
-// ===== GOOGLE ANALYTICS =====
-let _gaScriptLoaded = false;
-
-async function initGoogleAnalytics() {
-  const s = await getSettings();
-  const gaId = s.gaId;
-  if (!gaId || _gaScriptLoaded) return;
-
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
-  document.head.appendChild(script);
-
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { window.dataLayer.push(arguments); }
-  window.gtag = gtag;
-  gtag('js', new Date());
-  gtag('config', gaId);
-  _gaScriptLoaded = true;
-}
-
 async function initAdSense() {
   const s = await getSettings();
   const clientId = s.adsenseClientId;
@@ -280,5 +259,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   await renderHeader();
   await renderFooter();
   initAdSense();
-  initGoogleAnalytics();
 });
