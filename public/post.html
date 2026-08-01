@@ -56,7 +56,8 @@
     async function loadPost() {
       if (!postId) { location.href = '/'; return; }
       const container = document.getElementById('postContent');
-      container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+      const alreadyRendered = container.children.length > 0; // server-rendered content already present
+      if (!alreadyRendered) container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
       try {
         const post = await apiFetch(`/posts/${postId}`);
         currentPostExcerpt = post.excerpt || post.seoDescription || '';
@@ -71,27 +72,29 @@
           <a href="/category.html?name=${encodeURIComponent(post.category)}">${post.category}</a>
           <span>›</span> <span>${post.title.substring(0,50)}…</span>`;
 
-        container.innerHTML = `
-          ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
-          <div class="post-content-area">
-            <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
-            <h1 class="post-title">${post.title}</h1>
-            <div class="post-meta-bar">
-              <span>📅 ${formatDate(post.createdAt, true)}</span>
-              <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
-              <span>⏱ ${readingTime(post.content)} min read</span>
-              <span>👁 ${post.views} views</span>
-            </div>
-            <div class="post-body">${post.content}</div>
-            ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>` : ''}
-            <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
-            </div>
-            <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
-          </div>`;
+        if (!alreadyRendered) {
+          container.innerHTML = `
+            ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
+            <div class="post-content-area">
+              <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
+              <h1 class="post-title">${post.title}</h1>
+              <div class="post-meta-bar">
+                <span>📅 ${formatDate(post.createdAt, true)}</span>
+                <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
+                <span>⏱ ${readingTime(post.content)} min read</span>
+                <span>👁 ${post.views} views</span>
+              </div>
+              <div class="post-body">${post.content}</div>
+              ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>` : ''}
+              <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
+                <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
+                <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
+                <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
+              </div>
+              <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
+            </div>`;
+        }
 
         updateLikeButtonState();
         initAdSense();
@@ -102,7 +105,9 @@
         renderAds('bottomAd', 'bottom');
         renderAds('sidebarAd', 'sidebar');
       } catch (err) {
-        container.innerHTML = `<div class="empty-state"><h3>Post not found</h3><p>${err.message}</p><a href="/" class="btn btn-primary" style="margin-top:16px">← Go Home</a></div>`;
+        if (!alreadyRendered) {
+          container.innerHTML = `<div class="empty-state"><h3>Post not found</h3><p>${err.message}</p><a href="/" class="btn btn-primary" style="margin-top:16px">← Go Home</a></div>`;
+        }
       }
     }
 

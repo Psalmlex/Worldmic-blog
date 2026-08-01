@@ -13,10 +13,21 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+function formatDateServer(date, full = false) {
+  const d = new Date(date);
+  if (full) return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function readingTimeServer(content) {
+  const words = content?.replace(/<[^>]*>/g, '').split(/\s+/).length || 0;
+  return Math.max(1, Math.round(words / 200));
+}
+
 // Must come BEFORE express.static so it can intercept /post.html and inject real
-// per-post meta tags — social media crawlers (Facebook, Twitter, WhatsApp, LinkedIn)
-// don't execute JavaScript, so without this every shared post link shows generic
-// "World Mic" info instead of that post's actual title/image/description.
+// per-post meta tags AND the actual post content — search engines and social crawlers
+// don't reliably wait for (or execute) the client-side JS fetch that normally loads the
+// article, so without this, pages can look empty/erroring to them even though a real
+// browser sees the content fine.
 app.get('/post.html', async (req, res, next) => {
   try {
     const fs = require('fs');
@@ -29,13 +40,38 @@ app.get('/post.html', async (req, res, next) => {
     let image = `${req.protocol}://${req.get('host')}/images/app-icon.svg`;
     const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
     let statusCode = 200;
+    let postContentHtml = '';
 
     if (postId) {
-      const post = await Post.findById(postId).select('title excerpt seoTitle seoDescription featuredImage status').catch(() => null);
+      const post = await Post.findById(postId)
+        .select('title excerpt seoTitle seoDescription featuredImage status content category author authorUsername tags createdAt views likes')
+        .catch(() => null);
       if (post && post.status === 'published') {
         title = `${post.seoTitle || post.title || 'World Mic'} — World Mic`;
         description = post.seoDescription || post.excerpt || description;
         image = post.featuredImage || image;
+
+        postContentHtml = `
+          ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
+          <div class="post-content-area">
+            <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
+            <h1 class="post-title">${post.title}</h1>
+            <div class="post-meta-bar">
+              <span>📅 ${formatDateServer(post.createdAt, true)}</span>
+              <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
+              <span>⏱ ${readingTimeServer(post.content)} min read</span>
+              <span>👁 ${post.views} views</span>
+            </div>
+            <div class="post-body">${post.content}</div>
+            ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</div>` : ''}
+            <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
+              <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
+            </div>
+            <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
+          </div>`;
       } else {
         // Post doesn't exist, was deleted, or isn't published yet — this URL is genuinely
         // not a real page, so tell crawlers that with a real 404 instead of a "soft 404"
@@ -50,7 +86,8 @@ app.get('/post.html', async (req, res, next) => {
       .replace(/__META_TITLE__/g, title.replace(/"/g, '&quot;'))
       .replace(/__META_DESCRIPTION__/g, description.replace(/"/g, '&quot;'))
       .replace(/__META_IMAGE__/g, image)
-      .replace(/__META_URL__/g, url);
+      .replace(/__META_URL__/g, url)
+      .replace('<div id="postContent"></div>', `<div id="postContent">${postContentHtml}</div>`);
 
     res.status(statusCode).send(html);
   } catch (err) {
