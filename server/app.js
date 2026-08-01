@@ -146,7 +146,6 @@ app.get('/robots.txt', (req, res) => {
   res.send(`User-agent: *
 Allow: /
 Disallow: /admin-
-Disallow: /api/
 
 Sitemap: ${base}/sitemap.xml`);
 });
