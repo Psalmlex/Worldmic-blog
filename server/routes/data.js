@@ -261,7 +261,7 @@ router.get('/notifications', auth, auth.requireAdmin, async (req, res) => {
   try {
     const [newInquiries, recentPosts] = await Promise.all([
       Inquiry.find({ status: 'new' }).sort({ createdAt: -1 }).limit(20),
-      Post.find({ createdAt: { $gte: new Date(Date.now() - 48 * 60 * 60 * 1000) } })
+      Post.find({ createdAt: { $gte: new Date(Date.now() - 48 * 60 * 60 * 1000) }, notifSeen: { $ne: true } })
         .select('title author authorUsername createdAt status')
         .sort({ createdAt: -1 })
         .limit(20),
@@ -291,6 +291,23 @@ router.get('/notifications', auth, auth.requireAdmin, async (req, res) => {
 
     const items = [...inquiryItems, ...postItems].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ count: items.length, items });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Mark a single notification as seen — called the moment the admin clicks it in the
+// bell dropdown, so the badge count drops immediately instead of waiting for a separate
+// "Mark Reviewed" action elsewhere.
+router.put('/notifications/seen', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { type, id } = req.body;
+    if (type === 'inquiry') {
+      await Inquiry.findByIdAndUpdate(id, { status: 'reviewed' });
+    } else if (type === 'post') {
+      await Post.findByIdAndUpdate(id, { notifSeen: true });
+    } else {
+      return res.status(400).json({ error: 'Invalid notification type' });
+    }
+    res.json({ message: 'Marked as seen' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

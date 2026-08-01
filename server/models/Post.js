@@ -18,6 +18,7 @@ const postSchema = new mongoose.Schema({
   aiGenerated: { type: Boolean, default: false },
   seoTitle: String,
   seoDescription: String,
+  notifSeen: { type: Boolean, default: false }, // has the admin already seen/dismissed the "new post" notification for this?
 }, { timestamps: true });
 
 postSchema.pre('save', function(next) {

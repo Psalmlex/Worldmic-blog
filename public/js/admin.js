@@ -179,7 +179,7 @@ function wmRenderNotifDropdown(items) {
   list.innerHTML = items.slice(0, 15).map(n => {
     const icon = n.type === 'inquiry' ? (n.subtype === 'team' ? '🙋' : '🤝') : '📝';
     const href = n.type === 'inquiry' ? '/admin-inquiries.html' : '/admin-posts.html';
-    return `<a href="${href}" style="display:block;padding:12px 14px;border-bottom:1px solid #f0f0f0;text-decoration:none;color:inherit">
+    return `<a href="${href}" onclick="wmMarkNotifSeen(event, '${n.type}', '${n.id}', '${href}')" data-notif-id="${n.id}" style="display:block;padding:12px 14px;border-bottom:1px solid #f0f0f0;text-decoration:none;color:inherit">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <span style="font-size:1.1rem">${icon}</span>
         <div style="flex:1;min-width:0">
@@ -189,6 +189,30 @@ function wmRenderNotifDropdown(items) {
       </div>
     </a>`;
   }).join('');
+}
+
+// Marks the clicked notification as seen (fire-and-forget) and removes it from the
+// dropdown + decrements the badge immediately, so it doesn't wait for the next poll.
+function wmMarkNotifSeen(e, type, id, href) {
+  e.preventDefault();
+  adminFetch('/notifications/seen', { method: 'PUT', body: JSON.stringify({ type, id }) }).catch(() => {});
+
+  const el = document.querySelector(`[data-notif-id="${id}"]`);
+  if (el) el.remove();
+  if (wmLastNotifCount !== null && wmLastNotifCount > 0) {
+    wmLastNotifCount -= 1;
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      if (wmLastNotifCount > 0) badge.textContent = wmLastNotifCount > 9 ? '9+' : wmLastNotifCount;
+      else badge.style.display = 'none';
+    }
+  }
+  const list = document.getElementById('notifDropdownList');
+  if (list && !list.children.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:#999;font-size:0.85rem">No new notifications</div>`;
+  }
+
+  setTimeout(() => { window.location.href = href; }, 80);
 }
 
 async function wmPollNotifications() {
