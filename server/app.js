@@ -28,13 +28,21 @@ app.get('/post.html', async (req, res, next) => {
     let description = 'A multi-category blog covering news, culture, tech, and more.';
     let image = `${req.protocol}://${req.get('host')}/images/app-icon.svg`;
     const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    let statusCode = 200;
 
     if (postId) {
-      const post = await Post.findById(postId).select('title excerpt seoTitle seoDescription featuredImage').catch(() => null);
-      if (post) {
+      const post = await Post.findById(postId).select('title excerpt seoTitle seoDescription featuredImage status').catch(() => null);
+      if (post && post.status === 'published') {
         title = `${post.seoTitle || post.title || 'World Mic'} — World Mic`;
         description = post.seoDescription || post.excerpt || description;
         image = post.featuredImage || image;
+      } else {
+        // Post doesn't exist, was deleted, or isn't published yet — this URL is genuinely
+        // not a real page, so tell crawlers that with a real 404 instead of a "soft 404"
+        // (200 OK + "not found" text), which Google flags and refuses to index either way.
+        statusCode = 404;
+        title = 'Post Not Found — World Mic';
+        description = 'The post you\u2019re looking for doesn\u2019t exist or has been removed.';
       }
     }
 
@@ -44,7 +52,7 @@ app.get('/post.html', async (req, res, next) => {
       .replace(/__META_IMAGE__/g, image)
       .replace(/__META_URL__/g, url);
 
-    res.send(html);
+    res.status(statusCode).send(html);
   } catch (err) {
     next(); // fall back to the normal static file on any unexpected error
   }
