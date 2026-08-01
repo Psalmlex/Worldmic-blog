@@ -115,6 +115,16 @@
           </div>
         </div>
 
+        <!-- Notifications -->
+        <div class="form-card" style="grid-column:1/-1">
+          <div class="form-card-title">🔔 Notifications</div>
+          <div class="form-group" style="max-width:420px">
+            <label class="form-label">Notify Email</label>
+            <input class="form-input" id="notifyEmail" type="email" placeholder="you@yourdomain.com" autocomplete="off" />
+            <div class="form-hint">Get an instant email whenever someone applies to join the team, sends a partner inquiry, or a staff/editor account publishes or drafts a post. Requires email (Brevo key below) to be configured. Also powers the 🔔 bell in the admin sidebar — new items there play a sound too, while you have the admin panel open.</div>
+          </div>
+        </div>
+
         <!-- Email -->
         <div class="form-card" style="grid-column:1/-1">
           <div class="form-card-title">📧 Email / Newsletter</div>
@@ -235,7 +245,7 @@
   async function loadSettings() {
     try {
       const s = await adminFetch('/settings');
-      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+      const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','primaryColor','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail','notifyEmail'];
       fields.forEach(f => { const el=document.getElementById(f); if (el && s[f]) el.value = s[f]; });
       document.getElementById('adsenseHeaderEnabled').checked = s.adsenseHeaderEnabled === 'true';
       document.getElementById('adsenseContentEnabled').checked = s.adsenseContentEnabled === 'true';
@@ -248,7 +258,7 @@
   }
 
   async function saveAllSettings() {
-    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail'];
+    const fields = ['siteName','tagline','footerContact','footerAddress','footerAbout','socialTwitter','socialInstagram','socialFacebook','adminTone','toneSample','metaDescription','gaId','imageApiKey','imageApiProvider','textAiProvider','textAiKey','textAiModel','adsenseClientId','adsenseSlotTop','adsenseSlotContent','adsenseSlotInterstitial','serperApiKey','brevoApiKey','smtpHost','smtpPort','smtpUser','smtpPass','smtpFromName','smtpFromEmail','notifyEmail'];
     const updates = {};
     fields.forEach(f => { const el=document.getElementById(f); if(el) updates[f]=el.value.trim(); });
     updates.primaryColor = document.getElementById('primaryColorHex').value.trim() || document.getElementById('primaryColor').value;

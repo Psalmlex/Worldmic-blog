@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { Comment, Ad, Settings, Subscriber, Inquiry } = require('../models/Models');
+const Post = require('../models/Post');
+const { sendEmail } = require('../services/emailService');
 const auth = require('../middleware/auth');
 
 // ======= COMMENTS =======
@@ -211,6 +213,22 @@ router.post('/inquiries', async (req, res) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     await Inquiry.create({ type, name, email, company, roleInterest, message });
     res.status(201).json({ message: type === 'team' ? "Thanks for applying! We'll be in touch." : "Thanks for reaching out! We'll be in touch." });
+
+    // Notify the admin by email — fire-and-forget, never blocks or fails the person's submission
+    Settings.findOne({ key: 'notifyEmail' }).then(async setting => {
+      const notifyEmail = setting?.value;
+      if (!notifyEmail) return;
+      const label = type === 'team' ? 'Join the Team application' : 'Partner / Advertise inquiry';
+      await sendEmail(notifyEmail, `🔔 New ${label} — World Mic`, `
+        <h2>New ${label}</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        ${company ? `<p><strong>Company:</strong> ${company}</p>` : ''}
+        ${roleInterest ? `<p><strong>Role interest:</strong> ${roleInterest}</p>` : ''}
+        <p><strong>Message:</strong><br>${message}</p>
+        <p style="margin-top:20px"><a href="${req.protocol}://${req.get('host')}/admin-inquiries.html">Review in Admin →</a></p>
+      `).catch(err => console.error('[notify] Failed to send inquiry notification email:', err.message));
+    }).catch(() => {});
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -232,6 +250,47 @@ router.delete('/inquiries/:id', auth, auth.requireAdmin, async (req, res) => {
   try {
     await Inquiry.findByIdAndDelete(req.params.id);
     res.json({ message: 'Inquiry removed' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ======= ADMIN NOTIFICATIONS (bell icon) =======
+// Powers the notification bell in the admin topbar: new team/partner inquiries that
+// haven't been marked reviewed yet, plus posts published by staff (non-admin) accounts
+// in the last 48 hours, newest first.
+router.get('/notifications', auth, auth.requireAdmin, async (req, res) => {
+  try {
+    const [newInquiries, recentPosts] = await Promise.all([
+      Inquiry.find({ status: 'new' }).sort({ createdAt: -1 }).limit(20),
+      Post.find({ createdAt: { $gte: new Date(Date.now() - 48 * 60 * 60 * 1000) } })
+        .select('title author authorUsername createdAt status')
+        .sort({ createdAt: -1 })
+        .limit(20),
+    ]);
+
+    const inquiryItems = newInquiries.map(i => ({
+      type: 'inquiry',
+      subtype: i.type, // 'team' | 'partner'
+      id: i._id,
+      title: i.type === 'team' ? `${i.name} applied to join the team` : `${i.name} sent a partner inquiry`,
+      detail: i.message,
+      createdAt: i.createdAt,
+    }));
+
+    // Only surface posts made by someone other than the currently logged-in admin —
+    // you don't need a ping for your own posts, only your writers'/editors'.
+    const postItems = recentPosts
+      .filter(p => p.authorUsername && p.authorUsername.toLowerCase() !== (req.admin?.username || '').toLowerCase())
+      .map(p => ({
+        type: 'post',
+        subtype: p.status, // 'draft' | 'published'
+        id: p._id,
+        title: `${p.author || p.authorUsername} ${p.status === 'published' ? 'published' : 'drafted'} "${p.title}"`,
+        detail: '',
+        createdAt: p.createdAt,
+      }));
+
+    const items = [...inquiryItems, ...postItems].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ count: items.length, items });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

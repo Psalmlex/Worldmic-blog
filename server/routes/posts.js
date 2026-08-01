@@ -3,6 +3,8 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const auth = require('../middleware/auth');
+const { Settings } = require('../models/Models');
+const { sendEmail } = require('../services/emailService');
 
 // Public: Get published posts
 router.get('/', async (req, res) => {
@@ -88,6 +90,22 @@ router.post('/', auth, async (req, res) => {
     const post = new Post({ ...req.body, author: authorDisplay || 'World Mic', authorUsername: req.admin?.username || '' });
     await post.save();
     res.status(201).json(post);
+
+    // Notify the admin when someone OTHER than the admin publishes/drafts a post —
+    // fire-and-forget, never blocks or fails the actual save.
+    if (req.admin?.role && req.admin.role !== 'admin') {
+      Settings.findOne({ key: 'notifyEmail' }).then(async setting => {
+        const notifyEmail = setting?.value;
+        if (!notifyEmail) return;
+        const action = post.status === 'published' ? 'published' : 'saved a draft of';
+        await sendEmail(notifyEmail, `🔔 ${authorDisplay} ${action} a post — World Mic`, `
+          <h2>${authorDisplay} ${action} a post</h2>
+          <p><strong>Title:</strong> ${post.title}</p>
+          <p><strong>Status:</strong> ${post.status}</p>
+          <p style="margin-top:20px"><a href="${req.protocol}://${req.get('host')}/admin-posts.html">Review in Admin →</a></p>
+        `).catch(err => console.error('[notify] Failed to send new-post notification email:', err.message));
+      }).catch(() => {});
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

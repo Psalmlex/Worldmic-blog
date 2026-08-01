@@ -123,4 +123,130 @@ function renderAdminLayout(activeLink = '') {
   // Topbar avatar
   const avatarEl = document.getElementById('adminAvatar');
   if (avatarEl) avatarEl.textContent = adminName[0].toUpperCase();
+
+  initNotificationBell();
+}
+
+// ===== NOTIFICATION BELL (admin topbar) =====
+// Polls /api/notifications for new team/partner applications and staff/editor posts.
+// Plays a short beep + shows a badge when the count goes up since the last check —
+// works while the admin panel tab is open. For alerts even when the panel is closed,
+// set a Notify Email in Admin → Settings → Notifications (sends via email instead).
+let wmLastNotifCount = null;
+let wmNotifPollTimer = null;
+
+function wmPlayNotifSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1180].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + i * 0.14 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.14 + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.14);
+      osc.stop(ctx.currentTime + i * 0.14 + 0.24);
+    });
+  } catch (e) { /* Web Audio unsupported — silently skip the beep */ }
+}
+
+function wmTimeAgo(dateStr) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+async function wmFetchNotifications() {
+  try {
+    return await adminFetch('/notifications');
+  } catch (e) { return null; }
+}
+
+function wmRenderNotifDropdown(items) {
+  const list = document.getElementById('notifDropdownList');
+  if (!list) return;
+  if (!items.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:#999;font-size:0.85rem">No new notifications</div>`;
+    return;
+  }
+  list.innerHTML = items.slice(0, 15).map(n => {
+    const icon = n.type === 'inquiry' ? (n.subtype === 'team' ? '🙋' : '🤝') : '📝';
+    const href = n.type === 'inquiry' ? '/admin-inquiries.html' : '/admin-posts.html';
+    return `<a href="${href}" style="display:block;padding:12px 14px;border-bottom:1px solid #f0f0f0;text-decoration:none;color:inherit">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:1.1rem">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.85rem;font-weight:600;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.title}</div>
+          <div style="font-size:0.75rem;color:#999;margin-top:2px">${wmTimeAgo(n.createdAt)}</div>
+        </div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+async function wmPollNotifications() {
+  const data = await wmFetchNotifications();
+  if (!data) return;
+  const badge = document.getElementById('notifBadge');
+  if (badge) {
+    if (data.count > 0) { badge.textContent = data.count > 9 ? '9+' : data.count; badge.style.display = 'flex'; }
+    else { badge.style.display = 'none'; }
+  }
+  wmRenderNotifDropdown(data.items || []);
+  if (wmLastNotifCount !== null && data.count > wmLastNotifCount) {
+    wmPlayNotifSound();
+    const bell = document.getElementById('notifBellBtn');
+    if (bell) { bell.classList.add('notif-shake'); setTimeout(() => bell.classList.remove('notif-shake'), 600); }
+  }
+  wmLastNotifCount = data.count;
+}
+
+function initNotificationBell() {
+  const actionsEl = document.querySelector('.topbar-actions');
+  if (!actionsEl || document.getElementById('notifBellBtn')) return; // already added, or no topbar on this page
+
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  wrapper.innerHTML = `
+    <button id="notifBellBtn" onclick="wmToggleNotifDropdown(event)" aria-label="Notifications"
+      style="position:relative;background:none;border:none;cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:#555"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e53935;color:#fff;font-size:0.65rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px">0</span>
+    </button>
+    <div id="notifDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:320px;max-height:400px;overflow-y:auto;background:#fff;border:1px solid #e0e0e0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:1000">
+      <div style="padding:12px 14px;border-bottom:1px solid #f0f0f0;font-weight:700;font-size:0.85rem;color:#333">Notifications</div>
+      <div id="notifDropdownList"></div>
+    </div>`;
+  actionsEl.insertBefore(wrapper, actionsEl.firstChild);
+
+  if (!document.getElementById('notifShakeStyle')) {
+    const style = document.createElement('style');
+    style.id = 'notifShakeStyle';
+    style.textContent = `@keyframes notifShake{0%,100%{transform:rotate(0)}20%{transform:rotate(-15deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(6deg)}} .notif-shake{animation:notifShake 0.5s ease}`;
+    document.head.appendChild(style);
+  }
+
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('notifDropdown');
+    const bell = document.getElementById('notifBellBtn');
+    if (dropdown && !dropdown.contains(e.target) && bell && !bell.contains(e.target)) dropdown.style.display = 'none';
+  });
+
+  wmPollNotifications();
+  if (wmNotifPollTimer) clearInterval(wmNotifPollTimer);
+  wmNotifPollTimer = setInterval(wmPollNotifications, 30000);
+}
+
+function wmToggleNotifDropdown(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById('notifDropdown');
+  if (!dropdown) return;
+  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
 }
