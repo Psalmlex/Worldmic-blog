@@ -204,7 +204,7 @@ function postCardHTML(post) {
       </div>
       <div class="card-body">
         <div class="card-category">${post.category || 'General'}</div>
-        <h3 class="card-title"><a href="/post.html?id=${post._id}">${post.title}</a></h3>
+        <h3 class="card-title"><a href="/post/${post.slug}">${post.title}</a></h3>
         <p class="card-excerpt">${post.excerpt || ''}</p>
       </div>
       <div class="card-footer">
@@ -212,7 +212,7 @@ function postCardHTML(post) {
           <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>${formatDate(post.createdAt)}</span>
           <span>${readingTime(post.content)} min read</span>
         </div>
-        <a href="/post.html?id=${post._id}" class="btn btn-sm btn-secondary">Read →</a>
+        <a href="/post/${post.slug}" class="btn btn-sm btn-secondary">Read →</a>
       </div>
     </div>`;
 }

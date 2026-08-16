@@ -114,7 +114,7 @@
       const body = document.getElementById('recentPostsBody');
       body.innerHTML = posts.slice(0, 8).map(p => `
         <tr>
-          <td><a href="/post.html?id=${p._id}" target="_blank" style="font-weight:600;color:#1a1a2e;font-size:0.85rem">${p.title.substring(0,40)}…</a></td>
+          <td><a href="/post/${p.slug}" target="_blank" style="font-weight:600;color:#1a1a2e;font-size:0.85rem">${p.title.substring(0,40)}…</a></td>
           <td><span class="badge badge-${p.status}">${p.status}</span></td>
           <td>${p.views}</td>
         </tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#9a9aaa">No posts yet</td></tr>';

@@ -28,68 +28,89 @@ function readingTimeServer(content) {
 // don't reliably wait for (or execute) the client-side JS fetch that normally loads the
 // article, so without this, pages can look empty/erroring to them even though a real
 // browser sees the content fine.
+async function renderPostPage(req, res, post) {
+  const fs = require('fs');
+  const filePath = path.join(__dirname, '../public/post.html');
+  let html = fs.readFileSync(filePath, 'utf8');
+
+  let title = 'World Mic';
+  let description = 'A multi-category blog covering news, culture, tech, and more.';
+  let image = `${req.protocol}://${req.get('host')}/images/app-icon.svg`;
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  let statusCode = 200;
+  let postContentHtml = '';
+  let postIdScript = '';
+
+  if (post && post.status === 'published') {
+    title = `${post.seoTitle || post.title || 'World Mic'} — World Mic`;
+    description = post.seoDescription || post.excerpt || description;
+    image = post.featuredImage || image;
+    postIdScript = `<script>window.__POST_ID__=${JSON.stringify(String(post._id))};</script>`;
+
+    postContentHtml = `
+      ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
+      <div class="post-content-area">
+        <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
+        <h1 class="post-title">${post.title}</h1>
+        <div class="post-meta-bar">
+          <span>📅 ${formatDateServer(post.createdAt, true)}</span>
+          <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
+          <span>⏱ ${readingTimeServer(post.content)} min read</span>
+          <span>👁 ${post.views} views</span>
+        </div>
+        <div class="post-body">${post.content}</div>
+        ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</div>` : ''}
+        <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
+          <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
+          <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
+          <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
+        </div>
+        <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
+      </div>`;
+  } else {
+    // Post doesn't exist, was deleted, or isn't published yet — this URL is genuinely
+    // not a real page, so tell crawlers that with a real 404 instead of a "soft 404"
+    // (200 OK + "not found" text), which Google flags and refuses to index either way.
+    statusCode = 404;
+    title = 'Post Not Found — World Mic';
+    description = 'The post you\u2019re looking for doesn\u2019t exist or has been removed.';
+  }
+
+  html = html
+    .replace(/__META_TITLE__/g, title.replace(/"/g, '&quot;'))
+    .replace(/__META_DESCRIPTION__/g, description.replace(/"/g, '&quot;'))
+    .replace(/__META_IMAGE__/g, image)
+    .replace(/__META_URL__/g, url)
+    .replace('<div id="postContent"></div>', `<div id="postContent">${postContentHtml}</div>`)
+    .replace('</head>', `${postIdScript}</head>`);
+
+  res.status(statusCode).send(html);
+}
+
+const POST_SELECT = 'title excerpt seoTitle seoDescription featuredImage status content category author authorUsername tags createdAt views likes slug';
+
+// Canonical post URL — clean, readable, and what every internal link now points to.
+app.get('/post/:slug', async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ slug: req.params.slug }).select(POST_SELECT).catch(() => null);
+    await renderPostPage(req, res, post);
+  } catch (err) {
+    next();
+  }
+});
+
+// Legacy URL (?id=...) — some of these are already indexed by Google and shared around,
+// so instead of breaking them, redirect permanently to the new slug URL. This tells
+// Google the content moved and consolidates ranking onto the new canonical address.
 app.get('/post.html', async (req, res, next) => {
   try {
-    const fs = require('fs');
     const postId = req.query.id;
-    const filePath = path.join(__dirname, '../public/post.html');
-    let html = fs.readFileSync(filePath, 'utf8');
-
-    let title = 'World Mic';
-    let description = 'A multi-category blog covering news, culture, tech, and more.';
-    let image = `${req.protocol}://${req.get('host')}/images/app-icon.svg`;
-    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    let statusCode = 200;
-    let postContentHtml = '';
-
     if (postId) {
-      const post = await Post.findById(postId)
-        .select('title excerpt seoTitle seoDescription featuredImage status content category author authorUsername tags createdAt views likes')
-        .catch(() => null);
-      if (post && post.status === 'published') {
-        title = `${post.seoTitle || post.title || 'World Mic'} — World Mic`;
-        description = post.seoDescription || post.excerpt || description;
-        image = post.featuredImage || image;
-
-        postContentHtml = `
-          ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" class="post-hero-image" />` : ''}
-          <div class="post-content-area">
-            <div class="card-category" style="margin-bottom:10px">${post.category || 'General'}</div>
-            <h1 class="post-title">${post.title}</h1>
-            <div class="post-meta-bar">
-              <span>📅 ${formatDateServer(post.createdAt, true)}</span>
-              <span>✍️ ${post.authorUsername ? `<a href="/author.html?u=${post.authorUsername}" style="color:inherit;text-decoration:underline">${post.author || post.authorUsername}</a>` : (post.author || 'World Mic')}</span>
-              <span>⏱ ${readingTimeServer(post.content)} min read</span>
-              <span>👁 ${post.views} views</span>
-            </div>
-            <div class="post-body">${post.content}</div>
-            ${post.tags?.length ? `<div class="post-tags">${post.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</div>` : ''}
-            <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-secondary btn-sm like-btn" id="likeBtn" onclick="toggleLike()">🤍 <span id="likeCount">${post.likes || 0}</span></button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('twitter')">🐦 Tweet</button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('facebook')">👍 Share</button>
-              <button class="btn btn-secondary btn-sm" onclick="sharePost('copy')">🔗 Copy Link</button>
-            </div>
-            <div class="ad-slot" data-ad-slot="content" style="margin-top:28px"></div>
-          </div>`;
-      } else {
-        // Post doesn't exist, was deleted, or isn't published yet — this URL is genuinely
-        // not a real page, so tell crawlers that with a real 404 instead of a "soft 404"
-        // (200 OK + "not found" text), which Google flags and refuses to index either way.
-        statusCode = 404;
-        title = 'Post Not Found — World Mic';
-        description = 'The post you\u2019re looking for doesn\u2019t exist or has been removed.';
-      }
+      const post = await Post.findById(postId).select('slug').catch(() => null);
+      if (post?.slug) return res.redirect(301, `/post/${post.slug}`);
     }
-
-    html = html
-      .replace(/__META_TITLE__/g, title.replace(/"/g, '&quot;'))
-      .replace(/__META_DESCRIPTION__/g, description.replace(/"/g, '&quot;'))
-      .replace(/__META_IMAGE__/g, image)
-      .replace(/__META_URL__/g, url)
-      .replace('<div id="postContent"></div>', `<div id="postContent">${postContentHtml}</div>`);
-
-    res.status(statusCode).send(html);
+    await renderPostPage(req, res, null); // no id given / not found — render the generic 404 shell
   } catch (err) {
     next(); // fall back to the normal static file on any unexpected error
   }
@@ -159,7 +180,7 @@ app.get('/sitemap.xml', async (req, res) => {
 
     const urls = [
       ...staticPages.map(p => `  <url><loc>${base}${p}</loc><changefreq>daily</changefreq><priority>${p === '' ? '1.0' : '0.6'}</priority></url>`),
-      ...posts.map(p => `  <url><loc>${base}/post.html?id=${p._id}</loc><lastmod>${new Date(p.updatedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
+      ...posts.map(p => `  <url><loc>${base}/post/${p.slug}</loc><lastmod>${new Date(p.updatedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
     ];
 
     res.type('application/xml');

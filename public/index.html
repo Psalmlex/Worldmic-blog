@@ -106,7 +106,7 @@
       hero.innerHTML = `
         <div class="hero-inner">
           <div class="hero-badge">Featured</div>
-          <h1 class="hero-title"><a href="/post.html?id=${post._id}" style="color:inherit">${post.title}</a></h1>
+          <h1 class="hero-title"><a href="/post/${post.slug}" style="color:inherit">${post.title}</a></h1>
           <p class="hero-excerpt">${post.excerpt || ''}</p>
           <div class="hero-meta">
             <span>${formatDate(post.createdAt, true)}</span>
@@ -115,7 +115,7 @@
             <span>·</span>
             <span>${readingTime(post.content)} min read</span>
           </div>
-          <a href="/post.html?id=${post._id}" class="btn btn-primary" style="margin-top:20px">Read Article →</a>
+          <a href="/post/${post.slug}" class="btn btn-primary" style="margin-top:20px">Read Article →</a>
         </div>`;
     }
 
@@ -156,7 +156,7 @@
         const data = await apiFetch('/posts?limit=5&page=1');
         const sorted = [...(data.posts || [])].sort((a, b) => b.views - a.views).slice(0, 5);
         document.getElementById('trendingList').innerHTML = sorted.map((p, i) =>
-          `<li class="trending-item"><div class="trending-num">${String(i+1).padStart(2,'0')}</div><div><div class="card-category" style="margin:0 0 4px">${p.category}</div><a class="trending-title" href="/post.html?id=${p._id}">${p.title}</a></div></li>`
+          `<li class="trending-item"><div class="trending-num">${String(i+1).padStart(2,'0')}</div><div><div class="card-category" style="margin:0 0 4px">${p.category}</div><a class="trending-title" href="/post/${p.slug}">${p.title}</a></div></li>`
         ).join('');
       } catch {}
     }

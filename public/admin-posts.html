@@ -130,7 +130,7 @@
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <a href="/admin-create.html?id=${p._id}" class="btn btn-ghost btn-sm">Edit</a>
             <button class="btn btn-sm" style="background:#dcfce7;color:#16a34a" onclick="toggleStatus('${p._id}','${p.status}')">${p.status === 'published' ? 'Unpublish' : 'Publish'}</button>
-            <a href="/post.html?id=${p._id}" target="_blank" class="btn btn-ghost btn-sm">View</a>
+            <a href="/post/${p.slug}" target="_blank" class="btn btn-ghost btn-sm">View</a>
             <button class="btn btn-danger btn-sm" ${p.deletionRequested ? 'disabled' : ''} onclick="deletePost('${p._id}')">${isAdmin ? 'Delete' : (p.deletionRequested ? 'Pending…' : 'Request Delete')}</button>
           </div>
         </td>
