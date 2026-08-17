@@ -215,6 +215,11 @@ a:hover { color: var(--primary-dark); }
 .post-body ul, .post-body ol { margin: 14px 0 18px 24px; }
 .post-body li { margin-bottom: 6px; }
 .post-body blockquote { border-left: 4px solid var(--primary); padding: 12px 20px; background: var(--primary-light); border-radius: 0 8px 8px 0; margin: 20px 0; font-style: italic; color: var(--primary-dark); }
+.post-body table { width: 100%; border-collapse: collapse; margin: 20px 0 28px; font-size: 0.95rem; }
+.post-body th, .post-body td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #e5e5ea; }
+.post-body th { background: var(--primary-light); color: var(--primary-dark); font-weight: 700; font-family: var(--font-head); }
+.post-body tbody tr:nth-child(even) { background: #fafafa; }
+.post-body tbody tr:hover { background: var(--primary-light); }
 .post-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
 .tag { background: var(--primary-light); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
 
@@ -406,7 +411,8 @@ a:hover { color: var(--primary-dark); }
   .post-body h3 { font-size: 1.05rem; margin: 18px 0 8px; }
   .post-body blockquote { padding: 10px 14px; font-size: 0.9rem; }
   .post-body img { max-width: 100%; height: auto; border-radius: 8px; }
-  .post-body table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .post-body table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 0.85rem; }
+  .post-body th, .post-body td { padding: 9px 10px; white-space: nowrap; }
   .post-content-area { max-width: 100%; }
   .post-tags   { gap: 6px; }
 

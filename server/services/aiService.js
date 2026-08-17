@@ -248,7 +248,10 @@ CORE PRINCIPLES:
 - Balance emotion and logic: mix fact, feeling, reasoning, and story rather than staying purely clinical.
 - Quality over word count: never pad to hit a length target — every paragraph must introduce a new idea, support an argument, or move the piece forward.
 - End with impact: reinforce the real takeaway in the closing line, not a generic "leave a comment" or "share this" close.
-- Mostly flowing prose — only reach for a bullet/numbered list when the content is genuinely a sequence, comparison, or scannable checklist (this is more common in Affiliate/Review/Buying Guide content than Blog/Article/News/Opinion).`;
+- Mostly flowing prose — only reach for a bullet/numbered list when the content is genuinely a sequence, comparison, or scannable checklist (this is more common in Affiliate/Review/Buying Guide content than Blog/Article/News/Opinion).
+- Use a real HTML table — not a bulleted list — whenever the content has 3+ items being compared across the same 2+ attributes: specs, prices, pros/cons across multiple options, feature comparisons, before/after numbers, schedules, or any data that's genuinely easier to scan as a grid than as prose. Don't force one into content that's inherently narrative — most sections should stay prose, but when a table is the right shape for the content, use exactly this markup (no inline styles, no extra attributes):
+<table><thead><tr><th>Column</th><th>Column</th></tr></thead><tbody><tr><td>Value</td><td>Value</td></tr></tbody></table>
+If a draft already contains a well-placed table, preserve it — don't flatten it back into a paragraph or bullet list during a rewrite pass.`;
 
 function affiliateProductBlock(products) {
   if (!products || !products.length) return '';
@@ -319,7 +322,7 @@ ${contentType === 'affiliate' || contentType === 'review' || contentType === 'bu
     : '- At least one concrete, vivid scenario worked through in narrative prose. Frame invented scenarios as illustrative ("say someone...", "picture...") — never as a fabricated real person or verifiable case.'}
 Target length: ${wordTarget} words total across all sections.
 
-Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, and <ul>/<li> or a comparison table where genuinely useful for this content type) — no tags, no preamble, no markdown fences.`;
+Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, <ul>/<li>, and a <table> where genuinely useful per the table rule above) — no tags, no preamble, no markdown fences.`;
   const draft = await callAI(draftSystem, `Outline to follow:\n${outlineText}\n\nWrite the full ${typeConfig.label.toLowerCase()} about: ${effectiveTopic}. Category: ${category}.${groundingContext}${productBlock}`, 5000);
 
   // ── Stage 3: Heavy rewrite — original insight, examples, distinctive voice ──
@@ -336,6 +339,7 @@ Respond with ONLY the rewritten HTML article body — no tags, no preamble, no m
 
   // ── Stage 4: Rhythm/repetition copy-edit + final metadata ──
   const polishSystem = `You are a copy editor doing the final human-editing pass on a piece of ${typeConfig.label.toLowerCase()} content: remove filler, improve flow, vary wording, shorten weak sentences, improve rhythm, eliminate redundancy. Remove repeated phrases and words (especially repeated sentence openings and transition words). Do not flatten the voice back into generic phrasing.
+If the draft contains an HTML <table>, preserve it exactly as a table — do not convert it into a paragraph or bullet list during copy-editing.
 The piece MUST end with a specific, high-impact closing line as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific closing line here.</strong></p> — it should reinforce the real takeaway of THIS piece, not a generic "leave a comment" or "share this" close. Add it if missing.
 Then produce metadata for it. Identify 6-10 SEO keywords relevant to this topic and make sure the title/description use the primary one naturally.
 
