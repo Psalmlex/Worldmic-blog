@@ -20,7 +20,7 @@
       </div>
     </div>
     <div class="admin-content">
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:24px">
+      <div class="create-layout" style="display:grid;grid-template-columns:1fr 300px;gap:24px">
         <!-- Main Editor -->
         <div>
           <div class="form-card">
@@ -32,6 +32,10 @@
                 <button onclick="fmt('bold')"><b>B</b></button>
                 <button onclick="fmt('italic')"><i>I</i></button>
                 <button onclick="fmt('underline')"><u>U</u></button>
+                <div class="divider"></div>
+                <button onclick="highlightText(document.getElementById('highlightColorPicker').value)" title="Highlight selected text" style="display:flex;align-items:center;gap:4px">🖍️ Highlight</button>
+                <input type="color" id="highlightColorPicker" value="#fff59d" title="Pick highlight color" style="width:26px;height:26px;padding:0;border:1px solid var(--border);border-radius:5px;cursor:pointer;align-self:center" />
+                <button onclick="removeHighlight()" title="Remove highlight from selected text">🚫 Highlight</button>
                 <div class="divider"></div>
                 <button onclick="insertTag('h2')">H2</button>
                 <button onclick="insertTag('h3')">H3</button>
@@ -112,7 +116,7 @@
         </div>
 
         <!-- Sidebar Options -->
-        <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="create-sidebar" style="display:flex;flex-direction:column;gap:16px">
           <div class="form-card">
             <div class="form-card-title">Post Settings</div>
             <div class="form-group">
@@ -271,6 +275,16 @@
     document.execCommand('insertHTML', false, `<${tag}>${text}</${tag}><p></p>`);
   }
   function insertBlockquote() { document.execCommand('insertHTML', false, '<blockquote>Quote text here</blockquote><p></p>'); }
+
+  function highlightText(color) {
+    document.getElementById('postContent').focus();
+    document.execCommand('styleWithCSS', false, true); // use background-color instead of legacy <font> tags
+    // Firefox uses 'hiliteColor', Chrome/Safari/Edge use 'backColor' — try both for cross-browser support
+    if (!document.execCommand('hiliteColor', false, color)) {
+      document.execCommand('backColor', false, color);
+    }
+  }
+  function removeHighlight() { highlightText('transparent'); }
 
   // Remember where the cursor was in the editor before the file picker steals focus
   let savedRange = null;

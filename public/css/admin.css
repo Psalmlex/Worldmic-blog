@@ -229,9 +229,10 @@ tr:hover td { background: #fafbff; }
   .form-row-2  { grid-template-columns: 1fr; }
   .admin-search { width: 100%; }
 
-  /* Create post layout */
+  /* Create post layout — editor takes full width and comes first;
+     Post Settings / Featured Image / anything else in the sidebar follows after it */
   .create-layout { grid-template-columns: 1fr; }
-  .create-sidebar { order: -1; }
+  #postContent { min-height: 60vh !important; }
 }
 
 /* ── Mobile (≤ 600px) ── */
