@@ -249,6 +249,7 @@ CORE PRINCIPLES:
 - Quality over word count: never pad to hit a length target — every paragraph must introduce a new idea, support an argument, or move the piece forward.
 - End with impact: reinforce the real takeaway in the closing line, not a generic "leave a comment" or "share this" close.
 - Mostly flowing prose — only reach for a bullet/numbered list when the content is genuinely a sequence, comparison, or scannable checklist (this is more common in Affiliate/Review/Buying Guide content than Blog/Article/News/Opinion).
+- Never open the body with a heading or paragraph that just restates the title in slightly different words — the title already displays separately as a large heading right above the content, so repeating it reads as a jarring, redundant duplicate. Section 1 should start directly with substance, not a rephrased title or a generic "Introduction" heading. If a draft or existing post opens this way, remove the redundant restatement during rewrite/editing rather than preserving it.
 - Use a real HTML table — not a bulleted list — whenever the content has 3+ items being compared across the same 2+ attributes: specs, prices, pros/cons across multiple options, feature comparisons, before/after numbers, schedules, or any data that's genuinely easier to scan as a grid than as prose. Don't force one into content that's inherently narrative — most sections should stay prose, but when a table is the right shape for the content, use exactly this markup (no inline styles, no extra attributes):
 <table><thead><tr><th>Column</th><th>Column</th></tr></thead><tbody><tr><td>Value</td><td>Value</td></tr></tbody></table>
 If a draft already contains a well-placed table, preserve it — don't flatten it back into a paragraph or bullet list during a rewrite pass.`;
@@ -294,6 +295,7 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
 CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 ${toneInstruction}
 Plan sections that fit this content type. For Blog/Article/News/Opinion, name a SPECIFIC angle per section (a mechanism, a tradeoff, a counter-intuitive point) — not a generic label. For Affiliate/Review/Buying Guide, structure around genuine decision factors, honest comparison points, and a clear verdict/recommendation section.
+The piece's title is already displayed separately as a large heading above the content — do NOT plan a first section called "Introduction" or one whose heading just restates the title/topic. Section 1 should open directly with substance (a specific claim, scenario, or stat), and every section heading must add new information the title didn't already say.
 ${groundingContext ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}${productBlock}
 
 Respond using EXACTLY this format, no other text, no JSON, no markdown fences:

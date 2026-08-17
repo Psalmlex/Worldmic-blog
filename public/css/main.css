@@ -48,8 +48,8 @@
 [data-theme="dark"] .form-textarea:focus { background: var(--bg-white); }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body { font-family: var(--font-body); background: var(--bg); color: var(--text-body); line-height: 1.7; min-height: 100vh; display: flex; flex-direction: column; transition: background var(--transition), color var(--transition); }
+html { scroll-behavior: smooth; overflow-x: hidden; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--text-body); line-height: 1.7; min-height: 100vh; display: flex; flex-direction: column; transition: background var(--transition), color var(--transition); overflow-x: hidden; }
 img { max-width: 100%; display: block; }
 a { color: var(--primary); text-decoration: none; transition: color var(--transition); }
 a:hover { color: var(--primary-dark); }
@@ -143,6 +143,7 @@ a:hover { color: var(--primary-dark); }
 /* ===== LAYOUT ===== */
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .main-layout { display: grid; grid-template-columns: 1fr 320px; gap: 40px; padding: 40px 24px; max-width: 1200px; margin: 0 auto; }
+.main-layout > * { min-width: 0; }
 .full-width { grid-column: 1 / -1; }
 
 /* ===== POST CARDS ===== */
