@@ -270,11 +270,21 @@
 
   function fmt(cmd) { document.execCommand(cmd, false, null); document.getElementById('postContent').focus(); }
   function insertTag(tag) {
+    const editor = document.getElementById('postContent');
+    editor.focus();
     const sel = window.getSelection();
+    if (savedRange) { sel.removeAllRanges(); sel.addRange(savedRange); }
     const text = sel.toString() || 'Heading';
     document.execCommand('insertHTML', false, `<${tag}>${text}</${tag}><p></p>`);
   }
-  function insertBlockquote() { document.execCommand('insertHTML', false, '<blockquote>Quote text here</blockquote><p></p>'); }
+  function insertBlockquote() {
+    const editor = document.getElementById('postContent');
+    editor.focus();
+    const sel = window.getSelection();
+    if (savedRange) { sel.removeAllRanges(); sel.addRange(savedRange); }
+    const text = sel.toString();
+    document.execCommand('insertHTML', false, `<blockquote>${text || 'Quote text here'}</blockquote><p></p>`);
+  }
 
   function highlightText(color) {
     document.getElementById('postContent').focus();
