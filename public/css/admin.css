@@ -163,6 +163,25 @@ tr:hover td { background: #fafbff; }
 .editor-toolbar .divider { width: 1px; background: var(--border); margin: 2px 4px; }
 #postContent { border-radius: 0 0 7px 7px !important; min-height: 360px; }
 
+/* Create Post layout — mobile-first: editor stacks full-width and first in DOM order,
+   Post Settings / Featured Image / SEO naturally follow below it. Wide screens switch
+   to the two-column grid with the 300px sidebar. No inline styles compete with this
+   anymore, so there's nothing for specificity to fight. */
+.create-layout { display: flex; flex-direction: column; gap: 24px; }
+.create-sidebar { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 901px) {
+  .create-layout { display: grid; grid-template-columns: 1fr 300px; align-items: start; }
+}
+
+/* Bigger, easier-to-use editor and toolbar on phones — this is the primary work area,
+   it shouldn't be squeezed or fiddly to tap. */
+@media (max-width: 900px) {
+  #postContent { min-height: 65vh; font-size: 1.05rem; line-height: 1.9; }
+  .editor-toolbar { gap: 6px; padding: 12px; }
+  .editor-toolbar button { font-size: 0.95rem; padding: 10px 14px; }
+  .editor-toolbar .divider { margin: 4px 6px; }
+}
+
 /* ===== TOAST ===== */
 .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
 .toast { padding: 14px 20px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; min-width: 240px; }
@@ -229,10 +248,7 @@ tr:hover td { background: #fafbff; }
   .form-row-2  { grid-template-columns: 1fr; }
   .admin-search { width: 100%; }
 
-  /* Create post layout — editor takes full width and comes first;
-     Post Settings / Featured Image / anything else in the sidebar follows after it */
-  .create-layout { grid-template-columns: 1fr; }
-  #postContent { min-height: 60vh !important; }
+  /* create-layout/postContent sizing now handled mobile-first below, near the base .editor-toolbar rules */
 }
 
 /* ── Mobile (≤ 600px) ── */
