@@ -300,6 +300,8 @@
   let savedRange = null;
   document.getElementById('postContent').addEventListener('mouseup', saveSelection);
   document.getElementById('postContent').addEventListener('keyup', saveSelection);
+  document.getElementById('postContent').addEventListener('touchend', saveSelection);
+  document.addEventListener('selectionchange', saveSelection); // fires reliably for touch-drag selection on mobile, unlike mouseup/keyup alone
   function saveSelection() {
     const sel = window.getSelection();
     if (sel.rangeCount > 0 && document.getElementById('postContent').contains(sel.anchorNode)) {
