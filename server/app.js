@@ -171,6 +171,38 @@ Disallow: /admin-
 Sitemap: ${base}/sitemap.xml`);
 });
 
+// llms.txt — a plain-language summary of the site for AI agents/crawlers to read,
+// analogous to robots.txt but descriptive rather than a set of rules.
+app.get('/llms.txt', async (req, res) => {
+  try {
+    const base = `${req.protocol}://${req.get('host')}`;
+    const setting = await Settings.findOne({ key: 'siteName' });
+    const siteName = setting?.value || 'World Mic';
+    const posts = await Post.find({ status: 'published' })
+      .select('title slug excerpt category')
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    res.type('text/plain');
+    res.send(`# ${siteName}
+
+> A multi-category blog covering news, culture, tech, and more.
+
+This site publishes articles across categories including News, Technology, Culture, Opinion, and Reviews. Content is written for a general audience and updated regularly.
+
+## Key Pages
+- [Homepage](${base}/): latest posts across all categories
+- [Sitemap](${base}/sitemap.xml): full list of published URLs
+- [About](${base}/about.html): about this site
+
+## Recent Posts
+${posts.map(p => `- [${p.title}](${base}/post/${p.slug})${p.category ? ` — ${p.category}` : ''}${p.excerpt ? `: ${p.excerpt}` : ''}`).join('\n')}
+`);
+  } catch (err) {
+    res.status(500).type('text/plain').send('# error generating llms.txt');
+  }
+});
+
 // sitemap.xml — auto-generated from every published post + static pages, so Google discovers new content automatically
 app.get('/sitemap.xml', async (req, res) => {
   try {

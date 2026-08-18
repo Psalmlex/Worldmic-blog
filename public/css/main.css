@@ -3,7 +3,9 @@
    Clean & Professional Editorial Theme
    =================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+/* Google Fonts are loaded via <link> tags in each page's <head>, not @import here —
+   @import forces a slow serial chain (HTML → this CSS file → font CSS → font files);
+   <link> tags let the browser fetch fonts in parallel with everything else. */
 
 :root {
   --primary: #1a5eb8;
@@ -100,6 +102,12 @@ a:hover { color: var(--primary-dark); }
 
 .ad-slot { width: 100%; min-height: 0; }
 .ad-slot:empty { display: none; }
+/* Custom ad containers (topAd/middleAd/bottomAd/sidebarTopAd/sidebarBottomAd) are populated
+   asynchronously by renderAds() in main.js. Reserving space here prevents the layout jump
+   when an ad's real content pops in; renderAds() already explicitly sets display:none via
+   inline style when there's genuinely no ad for a position, which correctly collapses this
+   back to zero space — no conflict. */
+#topAd, #middleAd, #bottomAd, #sidebarAd, #sidebarTopAd, #sidebarBottomAd { min-height: 90px; }
 .ad-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; margin-bottom: 6px; opacity: 0.7; }
 .ad-slot-grid { grid-column: 1 / -1; }
 #adSlotTop { max-width: 1200px; margin: 12px auto 0; padding: 0 24px; }
@@ -323,7 +331,7 @@ a:hover { color: var(--primary-dark); }
 .breadcrumb span { color: var(--border); }
 
 /* ===== MOBILE ===== */
-.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; z-index: 1002; position: relative; flex-shrink: 0; }
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; z-index: 1002; position: relative; flex-shrink: 0; background: none; border: none; font: inherit; }
 .hamburger span { display: block; width: 22px; height: 2px; background: var(--text-dark); border-radius: 2px; transition: all var(--transition); }
 .mobile-menu { display: none; position: absolute; top: var(--header-h); left: 0; right: 0; background: var(--bg-white); border-bottom: 1px solid var(--border); padding: 16px 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); z-index: 1001; }
 .mobile-menu a { display: block; padding: 10px 0; border-bottom: 1px solid var(--border); color: var(--text-body); font-weight: 500; }
