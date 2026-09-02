@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Auto Publisher — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:10px"><button class="mobile-menu-btn" onclick="openSidebar()" aria-label="Open menu">☰</button><div class="topbar-title">AI Auto Publisher</div></div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary btn-sm" id="pauseResumeBtn" onclick="togglePause()" style="display:none">Pause</button>
+        <button class="btn btn-primary btn-sm" onclick="runNow()">▶ Run Now</button>
+        <div class="admin-avatar" id="adminAvatar">A</div>
+      </div>
+    </div>
+    <div class="admin-content">
+
+      <!-- Status -->
+      <div class="stats-grid" id="statusStats">
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+      </div>
+
+      <!-- Config -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>Configuration</h2></div>
+        <div style="padding:20px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.9rem;font-weight:600;margin-bottom:18px">
+            <input type="checkbox" id="cfgEnabled" style="width:auto" /> Enable Auto Publisher
+          </label>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Publishing Mode</label>
+              <select class="form-select" id="cfgMode">
+                <option value="draft">Draft only (recommended)</option>
+                <option value="autopublish">Auto-Publish</option>
+              </select>
+              <small style="color:#9a9aaa">Auto-Publish is OFF by default. When on, sensitive-topic posts that don't meet the stricter research bar are still saved as drafts for review.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Timezone (any IANA timezone)</label>
+              <input class="form-input" id="cfgTimezone" placeholder="e.g. Africa/Lagos, America/New_York, Asia/Tokyo" />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Publishing Times (24h, comma-separated)</label>
+              <input class="form-input" id="cfgTimes" placeholder="e.g. 09:00, 15:00" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Word Count Target</label>
+              <select class="form-select" id="cfgWordCount">
+                <option value="short">Short (600–800)</option>
+                <option value="medium">Medium (1000–1300)</option>
+                <option value="long">Long (1500–2000)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Categories to draw topics from (comma-separated — leave blank to use existing blog categories)</label>
+            <input class="form-input" id="cfgCategories" placeholder="e.g. Technology, Culture, Health" />
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Minimum Research Sources</label>
+              <input class="form-input" type="number" min="1" max="10" id="cfgMinSources" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Duplicate-Check Period (days)</label>
+              <input class="form-input" type="number" min="1" id="cfgDupDays" />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Search Provider</label>
+              <select class="form-select" id="cfgSearchProvider">
+                <option value="auto">Auto (Serper if configured, else browser fallback)</option>
+                <option value="serper">Serper.dev only</option>
+                <option value="browser">Browser fallback only</option>
+              </select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500">
+                <input type="checkbox" id="cfgImageEnabled" style="width:auto" /> Generate featured images
+              </label>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+          <span id="saveMsg" style="margin-left:12px;font-size:0.85rem"></span>
+        </div>
+      </div>
+
+      <!-- Job history -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>Job History</h2><span id="jobCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Topic</th><th>Category</th><th>Status</th><th>Research</th><th>Article</th><th>Image</th><th>Publish</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="jobsBody"><tr><td colspan="9" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let currentConfig = null;
+
+  function badgeFor(status) {
+    const map = {
+      completed: 'badge-published', done: 'badge-published', published: 'badge-published',
+      failed: 'badge-rejected', skipped_duplicate: 'badge-pending', skipped: 'badge-draft',
+      running: 'badge-pending', pending: 'badge-draft', draft: 'badge-draft',
+    };
+    return `<span class="badge ${map[status] || 'badge-draft'}">${status.replace('_', ' ')}</span>`;
+  }
+
+  async function loadStatus() {
+    try {
+      const s = await adminFetch('/auto-publisher/status');
+      currentConfig = currentConfig || {};
+      document.getElementById('statusStats').innerHTML = `
+        <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value" style="font-size:1.1rem">${s.enabled ? (s.paused ? 'Paused' : (s.currentlyRunning ? 'Running now' : 'Enabled')) : 'Disabled'}</div></div>
+        <div class="stat-card"><div class="stat-label">Mode</div><div class="stat-value" style="font-size:1.1rem">${s.mode === 'autopublish' ? 'Auto-Publish' : 'Draft only'}</div></div>
+        <div class="stat-card"><div class="stat-label">Successful Jobs</div><div class="stat-value">${s.successfulJobs}</div></div>
+        <div class="stat-card"><div class="stat-label">Failed Jobs</div><div class="stat-value">${s.failedJobs}</div></div>`;
+      const btn = document.getElementById('pauseResumeBtn');
+      if (s.enabled) { btn.style.display = ''; btn.textContent = s.paused ? 'Resume' : 'Pause'; }
+      else btn.style.display = 'none';
+    } catch (err) { console.error(err); }
+  }
+
+  async function loadConfig() {
+    try {
+      const c = await adminFetch('/auto-publisher/config');
+      currentConfig = c;
+      document.getElementById('cfgEnabled').checked = c.enabled;
+      document.getElementById('cfgMode').value = c.mode;
+      document.getElementById('cfgTimezone').value = c.timezone;
+      document.getElementById('cfgTimes').value = (c.publishTimes || []).join(', ');
+      document.getElementById('cfgWordCount').value = c.wordCount;
+      document.getElementById('cfgCategories').value = (c.categories || []).join(', ');
+      document.getElementById('cfgMinSources').value = c.minResearchSources;
+      document.getElementById('cfgDupDays').value = c.duplicateCheckPeriodDays;
+      document.getElementById('cfgSearchProvider').value = c.searchProvider;
+      document.getElementById('cfgImageEnabled').checked = c.imageGenerationEnabled;
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function saveConfig() {
+    const times = document.getElementById('cfgTimes').value.split(',').map(t => t.trim()).filter(Boolean);
+    const categories = document.getElementById('cfgCategories').value.split(',').map(c => c.trim()).filter(Boolean);
+    const mode = document.getElementById('cfgMode').value;
+    if (mode === 'autopublish' && !document.getElementById('cfgEnabled').dataset.confirmed) {
+      if (!confirm('Auto-Publish mode will publish AI-generated posts live without manual review (sensitive topics still fall back to draft). Continue?')) return;
+    }
+    const body = {
+      enabled: document.getElementById('cfgEnabled').checked,
+      mode,
+      timezone: document.getElementById('cfgTimezone').value.trim() || 'UTC',
+      publishTimes: times.length ? times : ['09:00'],
+      postsPerDay: times.length || 1,
+      categories,
+      wordCount: document.getElementById('cfgWordCount').value,
+      minResearchSources: Number(document.getElementById('cfgMinSources').value) || 3,
+      duplicateCheckPeriodDays: Number(document.getElementById('cfgDupDays').value) || 30,
+      searchProvider: document.getElementById('cfgSearchProvider').value,
+      imageGenerationEnabled: document.getElementById('cfgImageEnabled').checked,
+    };
+    try {
+      await adminFetch('/auto-publisher/config', { method: 'PUT', body: JSON.stringify(body) });
+      showToast('Configuration saved', 'success');
+      loadStatus();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function runNow() {
+    try {
+      await adminFetch('/auto-publisher/run-now', { method: 'POST' });
+      showToast('Run started — check Job History below for progress', 'success');
+      setTimeout(loadJobs, 2000);
+      setTimeout(loadStatus, 2000);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function togglePause() {
+    try {
+      const isPaused = document.getElementById('pauseResumeBtn').textContent === 'Resume';
+      await adminFetch(`/auto-publisher/${isPaused ? 'resume' : 'pause'}`, { method: 'POST' });
+      loadStatus();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function retryJobRow(id) {
+    try { await adminFetch(`/auto-publisher/jobs/${id}/retry`, { method: 'POST' }); showToast('Retry started', 'success'); setTimeout(loadJobs, 2000); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function loadJobs() {
+    try {
+      const jobs = await adminFetch('/auto-publisher/jobs?limit=50');
+      document.getElementById('jobCount').textContent = `${jobs.length} jobs`;
+      document.getElementById('jobsBody').innerHTML = jobs.length ? jobs.map(j => `
+        <tr>
+          <td style="max-width:220px">${j.topic || '<em>discovering…</em>'}</td>
+          <td>${j.category || '—'}</td>
+          <td>${badgeFor(j.status)}${j.error ? `<div style="font-size:0.7rem;color:#c0392b;margin-top:4px;max-width:200px">${j.error}</div>` : ''}</td>
+          <td>${badgeFor(j.researchStatus)}</td>
+          <td>${badgeFor(j.articleStatus)}</td>
+          <td>${badgeFor(j.imageStatus)}</td>
+          <td>${j.postId ? `<a href="/post/${j.postId.slug}" target="_blank">${badgeFor(j.publishStatus)}</a>` : badgeFor(j.publishStatus)}</td>
+          <td style="font-size:0.78rem;white-space:nowrap">${new Date(j.createdAt).toLocaleString()}</td>
+          <td>${j.status === 'failed' && j.retryCount < j.maxRetries ? `<button class="btn btn-sm btn-secondary" onclick="retryJobRow('${j._id}')">Retry</button>` : ''}</td>
+        </tr>`).join('') : `<tr><td colspan="9" style="text-align:center;padding:30px;color:#9a9aaa">No jobs yet — click "Run Now" or enable scheduled runs above.</td></tr>`;
+    } catch (err) { console.error(err); }
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    renderAdminLayout('/admin-autopublisher.html');
+    await loadConfig();
+    await loadStatus();
+    await loadJobs();
+    setInterval(loadStatus, 15000);
+    setInterval(loadJobs, 15000);
+  });
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+</script>
+</body>
+</html>

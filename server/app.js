@@ -1,15 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const connectDB = require('../config/db');
-const { Settings } = require('./models/Models');
+const { Settings, StaffUser } = require('./models/Models');
 const Post = require('./models/Post');
 
 const app = express();
 connectDB();
 
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -88,6 +90,192 @@ async function renderPostPage(req, res, post) {
   res.status(statusCode).send(html);
 }
 
+// Shared post-card markup, mirrored from public/js/main.js's postCardHTML() so the
+// server-rendered grids (home/category/author) match what the client re-renders once
+// its own JS runs. Keep the two in sync if the card markup changes.
+function postCardHtmlServer(post) {
+  return `
+      <div class="post-card">
+        <div class="post-card-img">
+          ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${post.title}" loading="lazy" />` : `<div class="no-img"></div>`}
+        </div>
+        <div class="card-body">
+          <div class="card-category">${post.category || 'General'}</div>
+          <h3 class="card-title"><a href="/post/${post.slug}">${post.title}</a></h3>
+          <p class="card-excerpt">${post.excerpt || ''}</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-meta">
+            <span>${formatDateServer(post.createdAt)}</span>
+            <span>${readingTimeServer(post.content)} min read</span>
+          </div>
+          <a href="/post/${post.slug}" class="btn btn-sm btn-secondary">Read →</a>
+        </div>
+      </div>`;
+}
+
+const LISTING_SELECT = 'title excerpt featuredImage category slug createdAt content likes views';
+
+// Homepage — same rationale as renderPostPage above: without this, Googlebot's first
+// (non-JS) fetch of "/" sees an empty #postsGrid, and non-JS crawlers/link-preview bots
+// never see any posts at all. Must come before express.static, since express.static
+// would otherwise serve the raw index.html file for "/" directly.
+app.get('/', async (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const filePath = path.join(__dirname, '../public/index.html');
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    const posts = await Post.find({ status: 'published' })
+      .sort({ createdAt: -1 })
+      .limit(9)
+      .select(LISTING_SELECT)
+      .catch(() => []);
+
+    if (posts.length) {
+      const [featured, ...rest] = posts;
+      const heroHtml = `
+        <div class="hero-inner">
+          <div class="hero-badge">Featured</div>
+          <h1 class="hero-title"><a href="/post/${featured.slug}" style="color:inherit">${featured.title}</a></h1>
+          <p class="hero-excerpt">${featured.excerpt || ''}</p>
+          <div class="hero-meta">
+            <span>${formatDateServer(featured.createdAt, true)}</span>
+            <span>·</span>
+            <span>${featured.category || 'General'}</span>
+            <span>·</span>
+            <span>${readingTimeServer(featured.content)} min read</span>
+          </div>
+          <a href="/post/${featured.slug}" class="btn btn-primary" style="margin-top:20px">Read Article →</a>
+        </div>`;
+      const gridHtml = rest.map(postCardHtmlServer).join('');
+
+      html = html
+        .replace(
+          '<section class="hero-section" id="heroSection" style="display:none"></section>',
+          `<section class="hero-section" id="heroSection">${heroHtml}</section>`
+        )
+        .replace(
+          '<div class="posts-grid" id="postsGrid"></div>',
+          `<div class="posts-grid" id="postsGrid">${gridHtml}</div>`
+        );
+    }
+
+    res.send(html);
+  } catch (err) {
+    next(); // fall back to the normal static file on any unexpected error
+  }
+});
+
+// Category listing — same technique as "/", parameterised by ?name=. Keeps the existing
+// query-string URL scheme (already linked everywhere) rather than introducing a new one.
+app.get('/category.html', async (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const filePath = path.join(__dirname, '../public/category.html');
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    const catName = (req.query.name || '').toString().trim();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 9;
+    const query = { status: 'published' };
+    if (catName) query.category = new RegExp(`^${catName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+    const [posts, categories] = await Promise.all([
+      Post.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).select(LISTING_SELECT),
+      Post.distinct('category', { status: 'published' }),
+    ]);
+
+    const heading = catName ? `${catName} Posts` : 'All Posts';
+    const title = `${catName ? `${catName} — ` : ''}Categories — World Mic`;
+    const description = catName
+      ? `Browse all World Mic articles in the ${catName} category.`
+      : 'Browse World Mic articles by category — news, culture, tech, and more.';
+    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+    const gridHtml = posts.length
+      ? posts.map(postCardHtmlServer).join('')
+      : `<div class="empty-state"><h3>No posts in this category</h3><p>Check back soon.</p></div>`;
+    const catListHtml = categories.map(c =>
+      `<li class="trending-item"><div class="trending-title"><a href="/category.html?name=${encodeURIComponent(c)}" class="${c === catName ? 'active' : ''}">${c}</a></div></li>`
+    ).join('');
+
+    html = html
+      .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+      .replace(
+        '</head>',
+        `<meta name="description" content="${description.replace(/"/g, '&quot;')}" />\n` +
+        `<link rel="canonical" href="${url}" />\n` +
+        `<meta property="og:title" content="${title.replace(/"/g, '&quot;')}" />\n` +
+        `<meta property="og:description" content="${description.replace(/"/g, '&quot;')}" />\n</head>`
+      )
+      .replace('<span id="pageTitle">Categories</span>', `<span id="pageTitle">${catName || 'Categories'}</span>`)
+      .replace('<h2 class="section-title" id="heading">All Posts</h2>', `<h2 class="section-title" id="heading">${heading}</h2>`)
+      .replace('<div class="posts-grid" id="postsGrid"></div>', `<div class="posts-grid" id="postsGrid">${gridHtml}</div>`)
+      .replace('<ul class="trending-list" id="catList"></ul>', `<ul class="trending-list" id="catList">${catListHtml}</ul>`);
+
+    res.send(html);
+  } catch (err) {
+    next();
+  }
+});
+
+// Author profile — same technique, parameterised by ?u=. Returns a real 404 for an
+// unknown username, same "genuine 404 over soft 404" reasoning as renderPostPage.
+app.get('/author.html', async (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const filePath = path.join(__dirname, '../public/author.html');
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    const username = (req.query.u || '').toString().toLowerCase().trim();
+    const author = username
+      ? await StaffUser.findOne({ username }).select('username name bio avatarUrl followerCount createdAt').catch(() => null)
+      : null;
+
+    let title = 'Writer Profile — World Mic';
+    let description = 'Read articles from World Mic contributors.';
+    let bodyHtml = `<div class="empty-state"><h3>Writer not found</h3></div>`;
+    let statusCode = author ? 200 : 404;
+
+    if (author) {
+      const posts = await Post.find({ authorUsername: author.username, status: 'published' })
+        .sort({ createdAt: -1 })
+        .select(LISTING_SELECT);
+      title = `${author.name || author.username} — World Mic`;
+      description = author.bio || `Articles by ${author.name || author.username} on World Mic.`;
+      const postsHtml = posts.length
+        ? posts.map(postCardHtmlServer).join('')
+        : `<p style="opacity:.6">No published posts yet.</p>`;
+      bodyHtml = `
+        <div class="author-header" style="text-align:center;margin-bottom:24px">
+          ${author.avatarUrl ? `<img src="${author.avatarUrl}" alt="${author.name || author.username}" style="width:96px;height:96px;border-radius:50%;object-fit:cover" />` : ''}
+          <h1>${author.name || author.username}</h1>
+          ${author.bio ? `<p>${author.bio}</p>` : ''}
+          <p style="opacity:.6">${posts.length} posts · ${author.followerCount || 0} followers</p>
+        </div>
+        <div class="posts-grid" id="profilePostsGrid">${postsHtml}</div>`;
+    }
+
+    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    html = html
+      .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+      .replace(
+        '</head>',
+        `<meta name="description" content="${description.replace(/"/g, '&quot;')}" />\n` +
+        `<link rel="canonical" href="${url}" />\n</head>`
+      )
+      .replace(
+        /<main style="width:100%" id="profileRoot">[\s\S]*?<\/main>/,
+        `<main style="width:100%" id="profileRoot">${bodyHtml}</main>`
+      );
+
+    res.status(statusCode).send(html);
+  } catch (err) {
+    next();
+  }
+});
+
 const POST_SELECT = 'title excerpt seoTitle seoDescription featuredImage status content category author authorUsername tags createdAt views likes slug';
 
 // Canonical post URL — clean, readable, and what every internal link now points to.
@@ -125,6 +313,12 @@ app.use('/api/authors', require('./routes/authors'));
 app.use('/api',         require('./routes/data'));
 app.use('/api/ai',      require('./routes/ai'));
 app.use('/api/upload',  require('./routes/upload'));
+app.use('/api/auto-publisher', require('./routes/autoPublisher'));
+
+// Auto Publisher scheduler — isolated background system, off by default (AutoPublisherConfig
+// defaults to enabled:false). Starting it here just begins polling every 60s for a due,
+// admin-enabled run; it never touches existing routes, models, or behavior.
+require('./services/schedulerService').start().catch(err => console.error('[autoPublisher] failed to start scheduler:', err.message));
 
 // Seed default settings
 async function seedSettings() {
@@ -208,11 +402,15 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const base = `${req.protocol}://${req.get('host')}`;
     const posts = await Post.find({ status: 'published' }).select('slug _id updatedAt').sort({ updatedAt: -1 });
+    const categories = await Post.distinct('category', { status: 'published' });
+    const authorUsernames = await Post.distinct('authorUsername', { status: 'published', authorUsername: { $ne: '' } });
     const staticPages = ['', '/category.html', '/search.html', '/about.html', '/join-team.html', '/partner.html'];
 
     const urls = [
       ...staticPages.map(p => `  <url><loc>${base}${p}</loc><changefreq>daily</changefreq><priority>${p === '' ? '1.0' : '0.6'}</priority></url>`),
       ...posts.map(p => `  <url><loc>${base}/post/${p.slug}</loc><lastmod>${new Date(p.updatedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
+      ...categories.map(c => `  <url><loc>${base}/category.html?name=${encodeURIComponent(c)}</loc><changefreq>daily</changefreq><priority>0.6</priority></url>`),
+      ...authorUsernames.map(u => `  <url><loc>${base}/author.html?u=${encodeURIComponent(u)}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>`),
     ];
 
     res.type('application/xml');

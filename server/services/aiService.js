@@ -272,7 +272,7 @@ function affiliateProductBlock(products) {
 // contentType: 'blog' | 'article' | 'affiliate' | 'news' | 'review' | 'buyingGuide' | 'opinion'
 // products: optional array of {name, url, notes} for affiliate/review/buyingGuide content
 async function generatePost(topic, tone = '', category = 'General', options = {}) {
-  const { length = 'long', sourceUrl = '', useWebSearch = false, contentType = 'article', products = [] } = options;
+  const { length = 'long', sourceUrl = '', useWebSearch = false, contentType = 'article', products = [], researchContext = '' } = options;
   const wordTarget = WORD_TARGETS[length] || WORD_TARGETS.long;
   const typeConfig = CONTENT_TYPES[contentType] || CONTENT_TYPES.article;
   const toneInstruction = tone ? `Personal tone/style on top of that: ${tone}` : '';
@@ -284,7 +284,14 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     effectiveTopic = topic || fetched.title || 'the linked page';
     groundingContext += `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
   }
-  if (useWebSearch) {
+  if (researchContext) {
+    // Pre-gathered research (e.g. from the Auto Publisher's own multi-source, multi-
+    // provider research step) takes precedence over triggering a fresh internal
+    // Serper search — avoids a redundant second search and lets callers supply
+    // research from any provider, not just Serper. Existing callers never pass this,
+    // so behavior for the manual admin "Generate Post" flow is unchanged.
+    groundingContext += `\n\nRESEARCH CONTEXT (already gathered — use these for up-to-date facts, cite what's actually here, don't invent beyond it):\n${researchContext}`;
+  } else if (useWebSearch) {
     const results = await webSearch(effectiveTopic);
     groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
   }
