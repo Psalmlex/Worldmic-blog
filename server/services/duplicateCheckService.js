@@ -25,16 +25,22 @@ const LEXICAL_THRESHOLD = 0.6; // fraction of shared significant words that coun
 
 // Returns { isDuplicate, reason, matchedTitle } — never throws. If the AI similarity
 // pass fails, it just falls back to the lexical result rather than blocking the job.
-async function checkDuplicate(topic, { periodDays = 30 } = {}) {
+// excludeJobId: the currently-running job's own _id must be excluded from the "recent
+// jobs" comparison set — otherwise every job matches its own just-saved topic exactly
+// and gets flagged as a duplicate of itself before it ever starts researching/writing.
+async function checkDuplicate(topic, { periodDays = 30, excludeJobId = null } = {}) {
   const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
   const candidateSlug = slugify(topic);
+
+  const jobQuery = { createdAt: { $gte: since } };
+  if (excludeJobId) jobQuery._id = { $ne: excludeJobId };
 
   const [recentPosts, recentJobs] = await Promise.all([
     // Existing published posts AND drafts both count, per the spec.
     Post.find({ createdAt: { $gte: since } }).select('title slug status').limit(300),
     // Previous AI jobs (including ones that never became posts) — catches the bot
     // re-attempting a topic it already tried recently, even if that attempt failed.
-    AutoPublisherJob.find({ createdAt: { $gte: since } }).select('topic status').limit(300),
+    AutoPublisherJob.find(jobQuery).select('topic status').limit(300),
   ]);
 
   const candidates = [

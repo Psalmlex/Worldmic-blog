@@ -72,7 +72,7 @@ async function runJob(trigger = 'scheduled') {
     await job.save();
 
     // ── 2. Duplicate check (before spending any research/writing effort) ──
-    const dup = await checkDuplicate(discovered.topic, { periodDays: config.duplicateCheckPeriodDays });
+    const dup = await checkDuplicate(discovered.topic, { periodDays: config.duplicateCheckPeriodDays, excludeJobId: job._id });
     if (dup.isDuplicate) {
       job.status = 'skipped_duplicate';
       job.error = dup.reason;
