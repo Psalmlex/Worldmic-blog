@@ -191,11 +191,18 @@ const WORD_TARGETS = { short: '600-800', medium: '1000-1300', long: '1500-2000' 
 // ─── Web search (Serper.dev) — lets Mica write about actual current events ───
 // Language models only know what's in their training data; they can't know about
 // anything that happened after their cutoff, or truly current news, without this.
-async function webSearch(query) {
+// freshness: optional Google/Serper time filter — 'qdr:d' (past day), 'qdr:w' (past
+// week), 'qdr:m' (past month), 'qdr:y' (past year). Omitted by default so existing
+// callers (manual admin search, generatePost's internal useWebSearch) are unaffected;
+// the Auto Publisher's research layer passes this explicitly to bias toward genuinely
+// recent results instead of whatever ranks best by relevance regardless of age.
+async function webSearch(query, { freshness = '' } = {}) {
   const apiKey = await getSetting('serperApiKey');
   if (!apiKey) throw new Error('No web search API key set. Add a Serper.dev key in Admin → Settings → AI Configuration to enable news research.');
   try {
-    const response = await axios.post('https://google.serper.dev/search', { q: query, num: 8 }, {
+    const body = { q: query, num: 8 };
+    if (freshness) body.tbs = freshness;
+    const response = await axios.post('https://google.serper.dev/search', body, {
       headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
     });
     const organic = response.data?.organic || [];
@@ -277,12 +284,19 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
   const typeConfig = CONTENT_TYPES[contentType] || CONTENT_TYPES.article;
   const toneInstruction = tone ? `Personal tone/style on top of that: ${tone}` : '';
 
-  let groundingContext = '';
+  const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  // Always include the real date (harmless/helpful even with no research), but track
+  // "is there actual research material" separately — the outline instruction below
+  // must only fire when there's real research, not just a date stamp, or every plain
+  // no-search topic would be wrongly told to "ground in research that isn't there."
+  let groundingContext = `\n\nTODAY'S ACTUAL DATE IS ${todayStr}. Treat this as ground truth, not your own training-based sense of "now" — write with this as the real current date, and don't describe past events as upcoming or state a stale year as current.`;
+  let hasResearchMaterial = false;
   let effectiveTopic = topic;
   if (sourceUrl) {
     const fetched = await fetchUrlContent(sourceUrl);
     effectiveTopic = topic || fetched.title || 'the linked page';
     groundingContext += `\n\nSOURCE MATERIAL (researched from ${sourceUrl}, title: "${fetched.title}") — base the article's facts on this, don't invent details that contradict it:\n${fetched.text}`;
+    hasResearchMaterial = true;
   }
   if (researchContext) {
     // Pre-gathered research (e.g. from the Auto Publisher's own multi-source, multi-
@@ -291,9 +305,11 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     // research from any provider, not just Serper. Existing callers never pass this,
     // so behavior for the manual admin "Generate Post" flow is unchanged.
     groundingContext += `\n\nRESEARCH CONTEXT (already gathered — use these for up-to-date facts, cite what's actually here, don't invent beyond it):\n${researchContext}`;
+    hasResearchMaterial = true;
   } else if (useWebSearch) {
     const results = await webSearch(effectiveTopic);
     groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
+    hasResearchMaterial = true;
   }
   const productBlock = affiliateProductBlock(products);
 
@@ -303,7 +319,7 @@ CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 ${toneInstruction}
 Plan sections that fit this content type. For Blog/Article/News/Opinion, name a SPECIFIC angle per section (a mechanism, a tradeoff, a counter-intuitive point) — not a generic label. For Affiliate/Review/Buying Guide, structure around genuine decision factors, honest comparison points, and a clear verdict/recommendation section.
 The piece's title is already displayed separately as a large heading above the content — do NOT plan a first section called "Introduction" or one whose heading just restates the title/topic. Section 1 should open directly with substance (a specific claim, scenario, or stat), and every section heading must add new information the title didn't already say.
-${groundingContext ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}${productBlock}
+${hasResearchMaterial ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}${productBlock}
 
 Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 
