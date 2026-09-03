@@ -16,9 +16,13 @@ function formatResearchForPrompt(sources) {
 
 // Basic content-integrity validation — never publish incomplete/empty content.
 // For sensitive subjects, require more research depth before allowing publish.
-// factCheck: the result of ai.verifyClaims() — any flagged claim, or a fact-check
-// pass that failed to run at all, forces manual review rather than being ignored.
-function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources, factCheck }) {
+// factCheck: the result of ai.verifyClaims(). A fact-check pass that failed to run
+// at all ALWAYS forces manual review (we genuinely don't know if the article is
+// accurate). Flagged claims only force review once they exceed a tunable threshold —
+// a single flagged claim is often just an AI fact-checker being overly literal about
+// phrasing, not a real error, so treating every flag as disqualifying produced far
+// more drafts than warranted. Sensitive topics keep a stricter (lower) threshold.
+function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources, factCheck, maxFlaggedClaims, maxFlaggedClaimsSensitive }) {
   const problems = [];
   if (!postData?.title || postData.title.trim().length < 5) problems.push('Missing or too-short title');
   const plainText = (postData?.content || '').replace(/<[^>]+>/g, '').trim();
@@ -37,8 +41,11 @@ function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources,
     requiresManualReview = true;
     reviewReasons.push(`fact-check pass could not run (${factCheck.error || 'unknown error'}) — treating as unverified`);
   } else if (factCheck?.flaggedClaims?.length) {
-    requiresManualReview = true;
-    reviewReasons.push(`${factCheck.flaggedClaims.length} claim(s) flagged as unsupported by research — review before publishing`);
+    const threshold = sensitive ? maxFlaggedClaimsSensitive : maxFlaggedClaims;
+    if (factCheck.flaggedClaims.length > threshold) {
+      requiresManualReview = true;
+      reviewReasons.push(`${factCheck.flaggedClaims.length} claim(s) flagged as unsupported by research, above the threshold of ${threshold} — review before publishing`);
+    }
   }
 
   return { ok: problems.length === 0, problems, requiresManualReview, reviewReasons };
@@ -154,7 +161,10 @@ async function runJob(trigger = 'scheduled') {
     if (!factCheck.checked) {
       job.error = (job.error ? job.error + ' | ' : '') + `Fact-check pass failed to run: ${factCheck.error}`;
     } else if (factCheck.flaggedClaims.length) {
-      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check flagged ${factCheck.flaggedClaims.length} unsupported claim(s)`;
+      // Informational at this stage — whether this actually forces a draft depends on
+      // the configured threshold, decided in validateArticle() below. Worded as a
+      // note rather than a warning so it doesn't look alarming next to a published post.
+      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check noted ${factCheck.flaggedClaims.length} claim(s) not directly traceable to research`;
     }
     await job.save();
 
@@ -164,6 +174,8 @@ async function runJob(trigger = 'scheduled') {
       sourcesUsed,
       minResearchSources: config.minResearchSources,
       factCheck,
+      maxFlaggedClaims: config.factCheckMaxFlaggedClaims,
+      maxFlaggedClaimsSensitive: config.factCheckMaxFlaggedClaimsSensitive,
     });
     if (!validation.ok) {
       job.status = 'failed';
