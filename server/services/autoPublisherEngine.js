@@ -16,7 +16,9 @@ function formatResearchForPrompt(sources) {
 
 // Basic content-integrity validation — never publish incomplete/empty content.
 // For sensitive subjects, require more research depth before allowing publish.
-function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources }) {
+// factCheck: the result of ai.verifyClaims() — any flagged claim, or a fact-check
+// pass that failed to run at all, forces manual review rather than being ignored.
+function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources, factCheck }) {
   const problems = [];
   if (!postData?.title || postData.title.trim().length < 5) problems.push('Missing or too-short title');
   const plainText = (postData?.content || '').replace(/<[^>]+>/g, '').trim();
@@ -24,13 +26,22 @@ function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources 
   if (!postData?.excerpt) problems.push('Missing excerpt');
 
   let requiresManualReview = false;
+  let reviewReasons = [];
   if (sensitive && sourcesUsed < minResearchSources + SENSITIVE_MIN_EXTRA_SOURCES) {
     // Not a hard failure — sensitive topics still get published-as-draft for human
     // review rather than being discarded, per "apply stricter validation."
     requiresManualReview = true;
+    reviewReasons.push('sensitive topic did not meet the stricter research bar for auto-publish');
+  }
+  if (factCheck && !factCheck.checked) {
+    requiresManualReview = true;
+    reviewReasons.push(`fact-check pass could not run (${factCheck.error || 'unknown error'}) — treating as unverified`);
+  } else if (factCheck?.flaggedClaims?.length) {
+    requiresManualReview = true;
+    reviewReasons.push(`${factCheck.flaggedClaims.length} claim(s) flagged as unsupported by research — review before publishing`);
   }
 
-  return { ok: problems.length === 0, problems, requiresManualReview };
+  return { ok: problems.length === 0, problems, requiresManualReview, reviewReasons };
 }
 
 async function isAnotherJobRunning() {
@@ -133,8 +144,27 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
+    // ── 4b. Fact-check: verify specific claims in the finished article against the
+    // research actually used, before deciding whether this can be auto-published. ──
+    job.factCheckStatus = 'running';
+    await job.save();
+    const factCheck = await ai.verifyClaims(postData.content, researchContext);
+    job.flaggedClaims = factCheck.flaggedClaims || [];
+    job.factCheckStatus = factCheck.checked ? 'done' : 'failed';
+    if (!factCheck.checked) {
+      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check pass failed to run: ${factCheck.error}`;
+    } else if (factCheck.flaggedClaims.length) {
+      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check flagged ${factCheck.flaggedClaims.length} unsupported claim(s)`;
+    }
+    await job.save();
+
     // ── 5. Validate (SEO fields already produced by generatePost) ──
-    const validation = validateArticle(postData, { sensitive: discovered.sensitive, sourcesUsed, minResearchSources: config.minResearchSources });
+    const validation = validateArticle(postData, {
+      sensitive: discovered.sensitive,
+      sourcesUsed,
+      minResearchSources: config.minResearchSources,
+      factCheck,
+    });
     if (!validation.ok) {
       job.status = 'failed';
       job.error = `Validation failed: ${validation.problems.join('; ')}`;
@@ -191,7 +221,7 @@ async function runJob(trigger = 'scheduled') {
     job.publishStatus = post.status === 'published' ? 'published' : 'draft';
     job.status = 'completed';
     if (validation.requiresManualReview) {
-      job.error = (job.error ? job.error + ' | ' : '') + 'Saved as draft for manual review: sensitive topic did not meet the stricter research bar for auto-publish.';
+      job.error = (job.error ? job.error + ' | ' : '') + `Saved as draft for manual review: ${validation.reviewReasons.join('; ')}.`;
     }
     job.completedAt = new Date();
     await job.save();

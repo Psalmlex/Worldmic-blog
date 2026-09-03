@@ -610,4 +610,54 @@ async function generateFeaturedImage(topic, contextText = '') {
   return { ...result, promptUsed: craftedPrompt };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent, webSearch };
+// ─── Fact/claim verification — checks specific factual claims in a finished article
+// against the research actually used to write it, flagging anything not traceable so
+// it can be reviewed before publishing rather than trusted blindly. This is a second
+// AI pass checking a first AI pass — it meaningfully reduces the risk of confident-
+// sounding invented specifics (numbers, dates, named studies/people, direct quotes)
+// slipping through, but it is not a guarantee of zero false information.
+async function verifyClaims(content, researchContext = '') {
+  const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const system = `You are a fact-checking editor. Read the ARTICLE and identify every specific, checkable factual claim in it — statistics, dates, named studies, named people/organizations making a claim, direct quotes, or precise causal/numeric assertions. Ignore general knowledge, opinions, and non-specific statements.
+
+${researchContext ? 'For each specific claim, check whether it is actually supported by the RESEARCH below (stated there, or a reasonable, non-overreaching inference from it). Flag any claim that is NOT supported by the research — it may be fabricated.' : 'No research was used to write this article. Flag any claim that states a specific number, date, named study, or direct quote as unsupported, since nothing backs it.'}
+
+Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
+
+[UNSUPPORTED]
+1. The exact claim as it appears in the article | why it isn't supported
+2. ...
+[/UNSUPPORTED]
+(leave the block containing only the word None if every specific claim is supported)`;
+
+  const userMsg = researchContext
+    ? `RESEARCH USED:\n${researchContext}\n\nARTICLE:\n${plainText}`
+    : `ARTICLE:\n${plainText}`;
+
+  try {
+    const raw = await callAI(system, userMsg, 1200);
+    const match = raw.match(/\[UNSUPPORTED\]([\s\S]*?)\[\/UNSUPPORTED\]/i);
+    if (!match) {
+      // The model didn't follow the expected format at all — this is NOT the same as
+      // "no claims flagged." Treat it as unchecked so the caller doesn't silently
+      // trust an article that was never actually verified.
+      return { flaggedClaims: [], checked: false, error: 'Fact-check response did not include a parseable [UNSUPPORTED] block' };
+    }
+    const block = match[1].trim();
+    if (!block || /^none\.?$/i.test(block)) return { flaggedClaims: [], checked: true };
+    const lines = block.split('\n').map(l => l.trim()).filter(l => /^\d+\./.test(l));
+    const flaggedClaims = lines.map(l => {
+      const withoutNum = l.replace(/^\d+\.\s*/, '');
+      const [claim, reason] = withoutNum.split('|').map(s => s?.trim());
+      return { claim: claim || withoutNum, reason: reason || '' };
+    });
+    return { flaggedClaims, checked: true };
+  } catch (err) {
+    // If the check itself fails to run (API error, etc.), don't silently report "all
+    // clear" — say so explicitly so the caller can treat an unchecked article with
+    // the same caution as a flagged one, rather than assuming it passed.
+    return { flaggedClaims: [], checked: false, error: err.message };
+  }
+}
+
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent, webSearch, verifyClaims };
