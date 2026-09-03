@@ -22,6 +22,62 @@ function toggleTheme() {
   if (btn) btn.innerHTML = next === 'dark' ? SUN_ICON : MOON_ICON;
 }
 
+// ===== COOKIE CONSENT =====
+// Gates the two things on this site that actually set non-essential cookies:
+// Google AdSense (initAdSense, below) and Google Analytics (js/analytics.js).
+// Theme preference and login token use localStorage, not cookies, and are required
+// for the site to function, so they're unaffected by this — same as most sites'
+// distinction between "strictly necessary" and everything else.
+const COOKIE_CONSENT_KEY = 'wm_cookie_consent'; // 'accepted' | 'declined'
+
+function getCookieConsent() {
+  return localStorage.getItem(COOKIE_CONSENT_KEY);
+}
+
+function setCookieConsent(value) {
+  localStorage.setItem(COOKIE_CONSENT_KEY, value);
+  document.getElementById('cookieConsentBanner')?.remove();
+  if (value === 'accepted') {
+    initAdSense();
+    window.wmLoadAnalytics?.();
+  }
+}
+
+function showCookieConsentBanner() {
+  if (document.getElementById('cookieConsentBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'cookieConsentBanner';
+  banner.setAttribute('role', 'dialog');
+  banner.setAttribute('aria-label', 'Cookie consent');
+  banner.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--bg-white);border-top:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,0.15);padding:16px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:14px;';
+  banner.innerHTML = `
+    <p style="margin:0;font-size:0.88rem;color:var(--text-body);max-width:560px;flex:1 1 260px;line-height:1.5">
+      We use cookies to run this site, and — only with your consent — for analytics and ads. See our <a href="/about.html" style="color:var(--accent);text-decoration:underline">About page</a> for details.
+    </p>
+    <div style="display:flex;gap:10px;flex-shrink:0">
+      <button class="btn btn-secondary btn-sm" onclick="setCookieConsent('declined')">Decline</button>
+      <button class="btn btn-primary btn-sm" onclick="setCookieConsent('accepted')">Accept</button>
+    </div>`;
+  document.body.appendChild(banner);
+}
+
+// Lets a visitor change their mind later — wired to a "Cookie Settings" link in the footer.
+function reopenCookieConsent() {
+  localStorage.removeItem(COOKIE_CONSENT_KEY);
+  showCookieConsentBanner();
+}
+
+function initCookieConsent() {
+  const consent = getCookieConsent();
+  if (consent === 'accepted') {
+    initAdSense();
+    window.wmLoadAnalytics?.();
+  } else if (consent !== 'declined') {
+    showCookieConsentBanner();
+  }
+  // consent === 'declined': do nothing — ads/analytics stay off until they opt in via the footer link
+}
+
 // ===== API HELPERS =====
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem('wm_token');
@@ -109,6 +165,7 @@ async function renderFooter() {
           <li><a href="/about.html">About Us</a></li>
           <li><a href="/join-team.html">Join Our Team</a></li>
           <li><a href="/partner.html">Partner / Advertise</a></li>
+          <li><a href="javascript:void(0)" onclick="reopenCookieConsent()">Cookie Settings</a></li>
         </ul>
       </div>
       <div>
@@ -258,5 +315,5 @@ function renderAdSlot(containerId, clientId, slotId) {
 document.addEventListener('DOMContentLoaded', async () => {
   await renderHeader();
   await renderFooter();
-  initAdSense();
+  initCookieConsent(); // replaces the old unconditional initAdSense() call below
 });
