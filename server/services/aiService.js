@@ -676,4 +676,78 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
   }
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, fetchUrlContent, webSearch, verifyClaims };
+// ─── Inline (in-body) images — decides IF an article needs any images beyond its
+// featured image, and where. Most articles need zero; this only adds one where a
+// specific section describes something genuinely visual (a place, product, physical
+// process, event, or data trend) that a reader would benefit from actually seeing.
+// Reuses generateFeaturedImage per section (same scene-prompting + generation +
+// Cloudinary upload path) rather than duplicating any image-generation logic.
+async function planInlineImages(content, topic) {
+  const headings = [...content.matchAll(/<h[23]>(.*?)<\/h[23]>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim());
+  if (headings.length < 2) return []; // too short a piece to warrant inline images
+
+  const system = `You are a photo editor deciding whether a long-form article needs any inline images beyond its featured image.
+Most articles need ZERO inline images — only pick a section if it describes something concretely visual (a place, product, physical process, event, object, or data trend) that a reader would genuinely benefit from seeing. Never pick one just to break up text. At most 2 for a genuinely long, highly visual piece — usually 0 or 1.
+
+SECTION HEADINGS IN THIS ARTICLE:
+${headings.map((h, i) => `${i + 1}. ${h}`).join('\n')}
+
+Respond using EXACTLY this format, no other text:
+[IMAGES]
+1. exact heading text, copied verbatim from the list above
+[/IMAGES]
+(leave the block completely empty if no inline image is genuinely warranted — this is the common case)`;
+
+  try {
+    const raw = await callAI(system, `Topic: ${topic}. Decide inline image placement, if any.`, 300);
+    const match = raw.match(/\[IMAGES\]([\s\S]*?)\[\/IMAGES\]/i);
+    const block = match ? match[1].trim() : '';
+    if (!block) return [];
+    const picked = block.split('\n').map(l => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+    // Only keep headings that actually exist verbatim in the article — an AI-invented
+    // heading can't be placed and would otherwise silently do nothing.
+    return picked.filter(h => headings.some(real => real.toLowerCase() === h.toLowerCase())).slice(0, 2);
+  } catch {
+    return []; // fail safe: no inline images rather than blocking the article over this
+  }
+}
+
+function extractSectionText(content, heading) {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`<h[23]>\\s*${escaped}\\s*<\\/h[23]>([\\s\\S]*?)(?=<h[23]>|$)`, 'i');
+  const m = content.match(re);
+  return m ? m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500) : '';
+}
+
+function inlineImageHtml(url, alt) {
+  return `\n<figure style="margin:24px 0"><img src="${url}" alt="${String(alt).replace(/"/g, '&quot;')}" loading="lazy" style="width:100%;border-radius:10px;display:block" /></figure>\n`;
+}
+
+// High-level entrypoint: plans placements, generates each (reusing generateFeaturedImage
+// per section), and splices the results into the HTML right after their heading. Any
+// single image failing doesn't block the others or the article — inline images are an
+// enhancement, never a requirement, matching the existing featured-image philosophy.
+async function generateInlineImages(content, topic) {
+  const headings = await planInlineImages(content, topic);
+  const inserted = [];
+  let updatedContent = content;
+  for (const heading of headings) {
+    try {
+      const sectionText = extractSectionText(content, heading);
+      const result = await generateFeaturedImage(`${topic} — ${heading}`, sectionText);
+      if (result.url) {
+        const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const headingRe = new RegExp(`(<h[23]>\\s*${escaped}\\s*<\\/h[23]>)`, 'i');
+        if (headingRe.test(updatedContent)) {
+          updatedContent = updatedContent.replace(headingRe, `$1${inlineImageHtml(result.url, heading)}`);
+          inserted.push({ url: result.url, alt: heading, heading, promptUsed: result.promptUsed });
+        }
+      }
+    } catch (err) {
+      console.warn(`[aiService] inline image generation failed for heading "${heading}":`, err.message);
+    }
+  }
+  return { content: updatedContent, insertedImages: inserted };
+}
+
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, verifyClaims };

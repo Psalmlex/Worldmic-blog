@@ -96,6 +96,9 @@
               <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500">
                 <input type="checkbox" id="cfgImageEnabled" style="width:auto" /> Generate featured images
               </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500;margin-top:8px">
+                <input type="checkbox" id="cfgInlineImages" style="width:auto" /> Add inline images where a section is genuinely visual
+              </label>
             </div>
           </div>
 
@@ -109,8 +112,8 @@
         <div class="table-header"><h2>Job History</h2><span id="jobCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Topic</th><th>Category</th><th>Status</th><th>Research</th><th>Article</th><th>Fact-Check</th><th>Image</th><th>Publish</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody id="jobsBody"><tr><td colspan="10" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+            <thead><tr><th>Topic</th><th>Category</th><th>Status</th><th>Research</th><th>Article</th><th>Fact-Check</th><th>Image</th><th>Inline Images</th><th>Publish</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="jobsBody"><tr><td colspan="11" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -162,6 +165,7 @@
       document.getElementById('cfgDupDays').value = c.duplicateCheckPeriodDays;
       document.getElementById('cfgSearchProvider').value = c.searchProvider;
       document.getElementById('cfgImageEnabled').checked = c.imageGenerationEnabled;
+      document.getElementById('cfgInlineImages').checked = c.inlineImagesEnabled;
     } catch (err) { showToast(err.message, 'error'); }
   }
 
@@ -184,6 +188,7 @@
       duplicateCheckPeriodDays: Number(document.getElementById('cfgDupDays').value) || 30,
       searchProvider: document.getElementById('cfgSearchProvider').value,
       imageGenerationEnabled: document.getElementById('cfgImageEnabled').checked,
+      inlineImagesEnabled: document.getElementById('cfgInlineImages').checked,
     };
     try {
       await adminFetch('/auto-publisher/config', { method: 'PUT', body: JSON.stringify(body) });
@@ -225,6 +230,13 @@
     return `${badge}<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.72rem;color:#c0392b">${j.flaggedClaims.length} flagged</summary><ul style="font-size:0.72rem;max-width:260px;padding-left:16px;margin-top:6px">${items}</ul></details>`;
   }
 
+  function inlineImagesCell(j) {
+    const badge = badgeFor(j.inlineImageStatus);
+    if (!j.inlineImagesInserted?.length) return badge;
+    const items = j.inlineImagesInserted.map(img => `<li style="margin-bottom:4px">${escapeHtml(img.heading)}</li>`).join('');
+    return `${badge}<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.72rem;color:#7a7a8a">${j.inlineImagesInserted.length} inserted</summary><ul style="font-size:0.72rem;max-width:220px;padding-left:16px;margin-top:6px">${items}</ul></details>`;
+  }
+
   async function loadJobs() {
     try {
       const jobs = await adminFetch('/auto-publisher/jobs?limit=50');
@@ -238,10 +250,11 @@
           <td>${badgeFor(j.articleStatus)}</td>
           <td>${factCheckCell(j)}</td>
           <td>${badgeFor(j.imageStatus)}</td>
+          <td>${inlineImagesCell(j)}</td>
           <td>${j.postId ? `<a href="/post/${j.postId.slug}" target="_blank">${badgeFor(j.publishStatus)}</a>` : badgeFor(j.publishStatus)}</td>
           <td style="font-size:0.78rem;white-space:nowrap">${new Date(j.createdAt).toLocaleString()}</td>
           <td>${j.status === 'failed' && j.retryCount < j.maxRetries ? `<button class="btn btn-sm btn-secondary" onclick="retryJobRow('${j._id}')">Retry</button>` : ''}</td>
-        </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:30px;color:#9a9aaa">No jobs yet — click "Run Now" or enable scheduled runs above.</td></tr>`;
+        </tr>`).join('') : `<tr><td colspan="11" style="text-align:center;padding:30px;color:#9a9aaa">No jobs yet — click "Run Now" or enable scheduled runs above.</td></tr>`;
     } catch (err) { console.error(err); }
   }
 

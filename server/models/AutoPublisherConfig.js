@@ -23,6 +23,11 @@ const autoPublisherConfigSchema = new mongoose.Schema({
   wordCount: { type: String, enum: ['short', 'medium', 'long'], default: 'medium' },
   minResearchSources: { type: Number, default: 3, min: 1, max: 10 },
   imageGenerationEnabled: { type: Boolean, default: true },
+  // Separate from the featured-image toggle above — controls whether the article
+  // body may also get 0-2 inline images where a section is genuinely visual. Kept
+  // as its own switch since an admin may want a featured image but not extra
+  // per-article image-generation cost/time from inline ones, or vice versa.
+  inlineImagesEnabled: { type: Boolean, default: true },
 
   // How far back (days) to look when checking for duplicate/near-duplicate topics.
   duplicateCheckPeriodDays: { type: Number, default: 30, min: 1 },

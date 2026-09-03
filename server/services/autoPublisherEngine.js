@@ -199,6 +199,26 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
+    // ── 6b. Inline (in-body) images — separate toggle, separate stage. Only adds
+    // images where a section is genuinely visual; most articles get none. Failure
+    // here is never critical — the article publishes with its text unchanged. ──
+    if (config.inlineImagesEnabled) {
+      job.inlineImageStatus = 'running';
+      await job.save();
+      try {
+        const inlineResult = await ai.generateInlineImages(postData.content, discovered.topic);
+        postData.content = inlineResult.content;
+        job.inlineImagesInserted = inlineResult.insertedImages;
+        job.inlineImageStatus = 'done'; // 'done' even when 0 were inserted — that's a valid "not necessary" outcome
+      } catch (err) {
+        job.inlineImageStatus = 'failed';
+        job.error = job.error ? `${job.error} | Inline images: ${err.message}` : `Inline images: ${err.message}`;
+      }
+    } else {
+      job.inlineImageStatus = 'skipped';
+    }
+    await job.save();
+
     // ── 7. Create post (existing Post model — slug/excerpt fallback logic untouched) ──
     const wantsPublish = config.mode === 'autopublish' && !validation.requiresManualReview;
     const post = new Post({

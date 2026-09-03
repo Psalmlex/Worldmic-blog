@@ -22,6 +22,10 @@ const autoPublisherJobSchema = new mongoose.Schema({
   factCheckStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
   flaggedClaims: [{ claim: String, reason: String }],
   imageStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
+  // Inline (in-body) images are tracked separately from the featured image above —
+  // a job can succeed at one and skip/fail the other independently.
+  inlineImageStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
+  inlineImagesInserted: [{ url: String, alt: String, heading: String }],
   publishStatus: { type: String, enum: ['pending', 'draft', 'published', 'failed'], default: 'pending' },
 
   postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null },
