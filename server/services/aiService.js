@@ -711,6 +711,45 @@ async function generateFeaturedImage(topic, contextText = '') {
   return { ...result, promptUsed: craftedPrompt };
 }
 
+// ─── Pre-write research verification — cross-checks the gathered sources AGAINST
+// EACH OTHER before any writing happens, producing a clean, corroboration-aware
+// briefing for the writer to work from. This is what makes the article fact-complete
+// from the start, rather than checking a finished article for problems afterward:
+// facts backed by multiple independent sources are stated plainly in the briefing;
+// a claim that only appears in one source is marked for cautious attribution rather
+// than flat assertion; conflicting sources are called out so the writer favors the
+// more authoritative/recent one instead of blending contradictory claims together.
+// Runs silently as part of research — it has no pass/fail gate and never blocks or
+// flags anything downstream; if it fails to run, it falls back to the raw source
+// material rather than stalling the pipeline.
+async function verifyResearch(sources, topic) {
+  if (!sources?.length) return { briefing: '', sourcesConsidered: 0 };
+
+  const sourceBlock = sources
+    .map((s, i) => `[${i + 1}] ${s.title}\nURL: ${s.link}\n${(s.extractedText || s.snippet || '').slice(0, 1000)}`)
+    .join('\n\n');
+
+  const system = `You are a research editor preparing a verified briefing for a writer, on the topic "${topic}".
+
+Read the SOURCES below and cross-check them against each other:
+- Facts corroborated by 2 or more independent sources: state these plainly — they're reliable to write as fact.
+- Facts appearing in only ONE source: mark these for cautious attribution (e.g. "according to [source]") rather than flat assertion, or omit them if they seem unreliable, unimportant, or unverifiable.
+- Where sources conflict on a fact: note the conflict explicitly and prefer the more authoritative or more recent source, rather than blending both into one claim.
+- Discard anything that reads as an ad, unrelated content, or spam rather than genuine information.
+
+Produce a clean, well-organized research briefing the writer can draft directly from — organized by sub-topic, not by source number. Include real specifics (names, numbers, dates) exactly as the sources state them. Do not include your own commentary or reasoning process, just the finished briefing.`;
+
+  try {
+    const briefing = await callAI(system, `SOURCES:\n${sourceBlock}`, 2000);
+    return { briefing, sourcesConsidered: sources.length };
+  } catch (err) {
+    // Verification failing to run isn't a reason to block the article — research
+    // still happened, it just wasn't cross-checked. Fall back to the raw material.
+    console.warn('[aiService] Research verification failed, using raw research instead:', err.message);
+    return { briefing: sourceBlock, sourcesConsidered: 0 };
+  }
+}
+
 // ─── Fact/claim verification — checks specific factual claims in a finished article
 // against the research actually used to write it, flagging anything not traceable so
 // it can be reviewed before publishing rather than trusted blindly. This is a second
@@ -835,4 +874,4 @@ async function generateInlineImages(content, topic) {
   return { content: updatedContent, insertedImages: inserted };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, googleSearch, performSearch, isGoogleSearchConfigured, verifyClaims };
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, googleSearch, performSearch, isGoogleSearchConfigured, verifyResearch, verifyClaims };

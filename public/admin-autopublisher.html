@@ -103,19 +103,6 @@
             </div>
           </div>
 
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">Max Flagged Claims Before Draft (general topics)</label>
-              <input class="form-input" type="number" min="0" max="20" id="cfgFactCheckMax" />
-              <small style="color:#9a9aaa">A single flagged claim is often just the fact-checker being literal about phrasing. Only force a draft once MORE than this many claims are flagged. 0 = any flag forces a draft.</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Max Flagged Claims Before Draft (sensitive topics)</label>
-              <input class="form-input" type="number" min="0" max="20" id="cfgFactCheckMaxSensitive" />
-              <small style="color:#9a9aaa">Health, finance, politics, breaking news — kept stricter than general topics. 0 (default) means any flagged claim forces a draft.</small>
-            </div>
-          </div>
-
           <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
           <span id="saveMsg" style="margin-left:12px;font-size:0.85rem"></span>
         </div>
@@ -126,8 +113,8 @@
         <div class="table-header"><h2>Job History</h2><span id="jobCount" style="font-size:0.85rem;color:#7a7a8a"></span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Topic</th><th>Category</th><th>Status</th><th>Research</th><th>Article</th><th>Fact-Check</th><th>Image</th><th>Inline Images</th><th>Publish</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody id="jobsBody"><tr><td colspan="11" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+            <thead><tr><th>Topic</th><th>Category</th><th>Status</th><th>Research</th><th>Article</th><th>Image</th><th>Inline Images</th><th>Publish</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="jobsBody"><tr><td colspan="10" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -178,8 +165,6 @@
       document.getElementById('cfgMinSources').value = c.minResearchSources;
       document.getElementById('cfgDupDays').value = c.duplicateCheckPeriodDays;
       document.getElementById('cfgSearchProvider').value = c.searchProvider;
-      document.getElementById('cfgFactCheckMax').value = c.factCheckMaxFlaggedClaims;
-      document.getElementById('cfgFactCheckMaxSensitive').value = c.factCheckMaxFlaggedClaimsSensitive;
       document.getElementById('cfgImageEnabled').checked = c.imageGenerationEnabled;
       document.getElementById('cfgInlineImages').checked = c.inlineImagesEnabled;
     } catch (err) { showToast(err.message, 'error'); }
@@ -203,8 +188,6 @@
       minResearchSources: Number(document.getElementById('cfgMinSources').value) || 3,
       duplicateCheckPeriodDays: Number(document.getElementById('cfgDupDays').value) || 30,
       searchProvider: document.getElementById('cfgSearchProvider').value,
-      factCheckMaxFlaggedClaims: Number(document.getElementById('cfgFactCheckMax').value) || 0,
-      factCheckMaxFlaggedClaimsSensitive: Number(document.getElementById('cfgFactCheckMaxSensitive').value) || 0,
       imageGenerationEnabled: document.getElementById('cfgImageEnabled').checked,
       inlineImagesEnabled: document.getElementById('cfgInlineImages').checked,
     };
@@ -241,12 +224,6 @@
     return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function factCheckCell(j) {
-    const badge = badgeFor(j.factCheckStatus);
-    if (!j.flaggedClaims?.length) return badge;
-    const items = j.flaggedClaims.map(c => `<li style="margin-bottom:6px"><strong>${escapeHtml(c.claim)}</strong><br><span style="color:#9a9aaa">${escapeHtml(c.reason)}</span></li>`).join('');
-    return `${badge}<details style="margin-top:4px"><summary style="cursor:pointer;font-size:0.72rem;color:#c0392b">${j.flaggedClaims.length} flagged</summary><ul style="font-size:0.72rem;max-width:260px;padding-left:16px;margin-top:6px">${items}</ul></details>`;
-  }
 
   function inlineImagesCell(j) {
     const badge = badgeFor(j.inlineImageStatus);
@@ -266,13 +243,12 @@
           <td>${badgeFor(j.status)}${j.error ? `<div style="font-size:0.7rem;color:#c0392b;margin-top:4px;max-width:200px">${j.error}</div>` : ''}</td>
           <td>${badgeFor(j.researchStatus)}</td>
           <td>${badgeFor(j.articleStatus)}</td>
-          <td>${factCheckCell(j)}</td>
           <td>${badgeFor(j.imageStatus)}</td>
           <td>${inlineImagesCell(j)}</td>
           <td>${j.postId ? `<a href="/post/${j.postId.slug}" target="_blank">${badgeFor(j.publishStatus)}</a>` : badgeFor(j.publishStatus)}</td>
           <td style="font-size:0.78rem;white-space:nowrap">${new Date(j.createdAt).toLocaleString()}</td>
           <td>${j.status === 'failed' && j.retryCount < j.maxRetries ? `<button class="btn btn-sm btn-secondary" onclick="retryJobRow('${j._id}')">Retry</button>` : ''}</td>
-        </tr>`).join('') : `<tr><td colspan="11" style="text-align:center;padding:30px;color:#9a9aaa">No jobs yet — click "Run Now" or enable scheduled runs above.</td></tr>`;
+        </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:30px;color:#9a9aaa">No jobs yet — click "Run Now" or enable scheduled runs above.</td></tr>`;
     } catch (err) { console.error(err); }
   }
 

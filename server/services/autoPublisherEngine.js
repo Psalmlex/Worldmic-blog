@@ -16,13 +16,11 @@ function formatResearchForPrompt(sources) {
 
 // Basic content-integrity validation — never publish incomplete/empty content.
 // For sensitive subjects, require more research depth before allowing publish.
-// factCheck: the result of ai.verifyClaims(). A fact-check pass that failed to run
-// at all ALWAYS forces manual review (we genuinely don't know if the article is
-// accurate). Flagged claims only force review once they exceed a tunable threshold —
-// a single flagged claim is often just an AI fact-checker being overly literal about
-// phrasing, not a real error, so treating every flag as disqualifying produced far
-// more drafts than warranted. Sensitive topics keep a stricter (lower) threshold.
-function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources, factCheck, maxFlaggedClaims, maxFlaggedClaimsSensitive }) {
+// (Fact-checking now happens BEFORE writing, as part of research verification —
+// see aiService.verifyResearch — so there's no post-write claim-checking gate here
+// anymore; a fact-check "error" surfacing after publish is exactly what that change
+// was meant to eliminate.)
+function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources }) {
   const problems = [];
   if (!postData?.title || postData.title.trim().length < 5) problems.push('Missing or too-short title');
   const plainText = (postData?.content || '').replace(/<[^>]+>/g, '').trim();
@@ -36,16 +34,6 @@ function validateArticle(postData, { sensitive, sourcesUsed, minResearchSources,
     // review rather than being discarded, per "apply stricter validation."
     requiresManualReview = true;
     reviewReasons.push('sensitive topic did not meet the stricter research bar for auto-publish');
-  }
-  if (factCheck && !factCheck.checked) {
-    requiresManualReview = true;
-    reviewReasons.push(`fact-check pass could not run (${factCheck.error || 'unknown error'}) — treating as unverified`);
-  } else if (factCheck?.flaggedClaims?.length) {
-    const threshold = sensitive ? maxFlaggedClaimsSensitive : maxFlaggedClaims;
-    if (factCheck.flaggedClaims.length > threshold) {
-      requiresManualReview = true;
-      reviewReasons.push(`${factCheck.flaggedClaims.length} claim(s) flagged as unsupported by research, above the threshold of ${threshold} — review before publishing`);
-    }
   }
 
   return { ok: problems.length === 0, problems, requiresManualReview, reviewReasons };
@@ -99,7 +87,11 @@ async function runJob(trigger = 'scheduled') {
       return job;
     }
 
-    // ── 3. Research ──
+    // ── 3. Research + verification — sources are cross-checked against EACH OTHER
+    // here, before any writing happens, so the writer works from an already-vetted
+    // briefing instead of raw, uncorroborated search snippets. This is what makes the
+    // article fact-complete from the start rather than needing to be checked after
+    // it's written — there's no post-write fact-check stage anymore. ──
     job.researchStatus = 'running';
     await job.save();
     let researchContext = '';
@@ -111,8 +103,16 @@ async function runJob(trigger = 'scheduled') {
       });
       job.researchSources = research.sources.map(s => ({ title: s.title, link: s.link, snippet: s.snippet }));
       job.searchProviderUsed = research.providerUsed;
-      researchContext = formatResearchForPrompt(research.sources);
       sourcesUsed = research.sources.length;
+
+      // Cross-check the gathered sources against each other and build a verified
+      // briefing (corroborated facts stated plainly, single-source claims attributed
+      // cautiously, conflicts called out) — this is the fact-checking step, moved
+      // here so it improves what the writer works from instead of gatekeeping what
+      // it already wrote. Runs silently; a failure here falls back to raw research
+      // rather than blocking the job, same fail-safe posture as before.
+      const verified = await ai.verifyResearch(research.sources, discovered.topic);
+      researchContext = verified.briefing || formatResearchForPrompt(research.sources);
       job.researchStatus = 'done';
     } catch (err) {
       job.researchStatus = 'failed';
@@ -151,31 +151,11 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
-    // ── 4b. Fact-check: verify specific claims in the finished article against the
-    // research actually used, before deciding whether this can be auto-published. ──
-    job.factCheckStatus = 'running';
-    await job.save();
-    const factCheck = await ai.verifyClaims(postData.content, researchContext);
-    job.flaggedClaims = factCheck.flaggedClaims || [];
-    job.factCheckStatus = factCheck.checked ? 'done' : 'failed';
-    if (!factCheck.checked) {
-      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check pass failed to run: ${factCheck.error}`;
-    } else if (factCheck.flaggedClaims.length) {
-      // Informational at this stage — whether this actually forces a draft depends on
-      // the configured threshold, decided in validateArticle() below. Worded as a
-      // note rather than a warning so it doesn't look alarming next to a published post.
-      job.error = (job.error ? job.error + ' | ' : '') + `Fact-check noted ${factCheck.flaggedClaims.length} claim(s) not directly traceable to research`;
-    }
-    await job.save();
-
     // ── 5. Validate (SEO fields already produced by generatePost) ──
     const validation = validateArticle(postData, {
       sensitive: discovered.sensitive,
       sourcesUsed,
       minResearchSources: config.minResearchSources,
-      factCheck,
-      maxFlaggedClaims: config.factCheckMaxFlaggedClaims,
-      maxFlaggedClaimsSensitive: config.factCheckMaxFlaggedClaimsSensitive,
     });
     if (!validation.ok) {
       job.status = 'failed';

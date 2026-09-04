@@ -22,12 +22,6 @@ const autoPublisherConfigSchema = new mongoose.Schema({
 
   wordCount: { type: String, enum: ['short', 'medium', 'long'], default: 'medium' },
   minResearchSources: { type: Number, default: 3, min: 1, max: 10 },
-  // How many fact-check-flagged claims a general (non-sensitive) article can have
-  // before it's forced to draft for manual review, instead of any single flag doing
-  // so — an AI fact-checker flagging one claim is often just being literal about
-  // phrasing, not catching a real error. Sensitive topics keep a stricter, lower bar.
-  factCheckMaxFlaggedClaims: { type: Number, default: 2, min: 0, max: 20 },
-  factCheckMaxFlaggedClaimsSensitive: { type: Number, default: 0, min: 0, max: 20 },
   imageGenerationEnabled: { type: Boolean, default: true },
   // Separate from the featured-image toggle above — controls whether the article
   // body may also get 0-2 inline images where a section is genuinely visual. Kept

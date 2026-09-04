@@ -14,13 +14,6 @@ const autoPublisherJobSchema = new mongoose.Schema({
   // Per-stage status, so the admin can see exactly where a job is / failed.
   researchStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
   articleStatus: { type: String, enum: ['pending', 'running', 'done', 'failed'], default: 'pending' },
-  // Second AI pass checking the finished article's specific claims against the
-  // research actually used — see aiService.verifyClaims for what this does and does
-  // not guarantee. 'skipped' when the topic was evergreen and no research was used
-  // AND the article had no research context to check against (rare — verifyClaims
-  // still runs in that case, checking for unsupported specifics with no grounding).
-  factCheckStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
-  flaggedClaims: [{ claim: String, reason: String }],
   imageStatus: { type: String, enum: ['pending', 'running', 'done', 'failed', 'skipped'], default: 'pending' },
   // Inline (in-body) images are tracked separately from the featured image above —
   // a job can succeed at one and skip/fail the other independently.

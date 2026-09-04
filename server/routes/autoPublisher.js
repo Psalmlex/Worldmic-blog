@@ -27,7 +27,6 @@ const EDITABLE_FIELDS = [
   'enabled', 'mode', 'timezone', 'publishTimes', 'postsPerDay', 'categories',
   'wordCount', 'minResearchSources', 'imageGenerationEnabled', 'inlineImagesEnabled',
   'duplicateCheckPeriodDays', 'searchProvider',
-  'factCheckMaxFlaggedClaims', 'factCheckMaxFlaggedClaimsSensitive',
 ];
 
 router.put('/config', async (req, res) => {
