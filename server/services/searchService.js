@@ -4,13 +4,7 @@
 // New providers (Bing, SerpAPI, etc.) can be added to PROVIDERS without touching
 // the rest of the pipeline.
 
-const ai = require('./aiService'); // reused, not duplicated — see webSearch() below
-const { Settings } = require('../models/Models');
-
-async function getSetting(key) {
-  const doc = await Settings.findOne({ key });
-  return doc?.value;
-}
+const ai = require('./aiService'); // reused, not duplicated — see googleSearch()/webSearch() there
 
 // ── Provider: Serper.dev (reuses the EXISTING WorldMic search integration) ──
 async function serperProvider(query, { freshness = '' } = {}) {
@@ -75,14 +69,28 @@ async function browserProvider(query, { freshness = '' } = {}) {
   }
 }
 
-// ── Which provider to use ──────────────────────────────────────────────────
-// 'auto' (default): use Serper if a key is configured, otherwise fall back to the
-// browser. Admin can force one or the other via AutoPublisherConfig.searchProvider.
-async function resolveProvider(preference = 'auto') {
-  if (preference === 'serper') return { name: 'serper', fn: serperProvider };
-  if (preference === 'browser') return { name: 'browser', fn: browserProvider };
-  const hasSerperKey = !!(await getSetting('serperApiKey'));
-  return hasSerperKey ? { name: 'serper', fn: serperProvider } : { name: 'browser', fn: browserProvider };
+// ── Provider: Google Custom Search (reuses aiService.googleSearch/isGoogleSearchConfigured) ──
+async function googleProvider(query, { freshness = '' } = {}) {
+  return ai.googleSearch(query, { freshness });
+}
+
+// ── Which provider(s) to use, in order ──────────────────────────────────────
+// Returns an ORDERED CHAIN, not a single pick — 'auto' mode needs real runtime
+// fallback (a Google quota error mid-run should still recover via Serper within the
+// same research pass), not just a one-time config check. An explicit choice
+// ('google' | 'serper' | 'browser') returns a chain of length 1, so it behaves
+// exactly as before: that provider's failure propagates with no silent fallback.
+// 'auto': Google (if configured) → Serper → the browser fallback, each only reached
+// if everything before it is unconfigured or actually fails at runtime.
+function buildProviderChain(preference = 'auto') {
+  if (preference === 'google') return [{ name: 'google', fn: googleProvider }];
+  if (preference === 'serper') return [{ name: 'serper', fn: serperProvider }];
+  if (preference === 'browser') return [{ name: 'browser', fn: browserProvider }];
+  const chain = [];
+  if (ai.isGoogleSearchConfigured()) chain.push({ name: 'google', fn: googleProvider });
+  chain.push({ name: 'serper', fn: serperProvider }); // serperProvider itself throws a clear error if no key is set
+  chain.push({ name: 'browser', fn: browserProvider });
+  return chain;
 }
 
 // ── Best-effort recency scoring so genuinely fresh results are preferred when
@@ -108,7 +116,9 @@ function recencyScore(dateStr) {
 // deeper extraction (reusing aiService.fetchUrlContent so there's only one
 // "fetch + strip HTML" implementation in the codebase). ──────────────────────
 async function researchTopic(topic, { minSources = 3, providerPreference = 'auto' } = {}) {
-  const { name, fn } = await resolveProvider(providerPreference);
+  const chain = buildProviderChain(providerPreference);
+  let activeIndex = 0; // once a provider works for a query, keep using it for the rest
+  let providerUsed = chain[0].name;
 
   // Recency-biased by default — this is what actually fixes "the research is about
   // past years": without a time filter, a search engine returns whatever ranks best
@@ -123,14 +133,21 @@ async function researchTopic(topic, { minSources = 3, providerPreference = 'auto
   ];
   const seen = new Map(); // link -> result, de-duplicated across queries
   for (const { q, freshness } of queries) {
-    try {
-      const results = await fn(q, { freshness });
-      for (const r of results) {
-        if (r.link && !seen.has(r.link)) seen.set(r.link, r);
+    // Try the currently-active provider first; on failure, walk forward through the
+    // rest of the chain for THIS query. For an explicit single-provider preference,
+    // the chain has only one link, so this is identical to the old try-once behavior.
+    for (let i = activeIndex; i < chain.length; i++) {
+      try {
+        const results = await chain[i].fn(q, { freshness });
+        for (const r of results) if (r.link && !seen.has(r.link)) seen.set(r.link, r);
+        activeIndex = i;
+        providerUsed = chain[i].name;
+        break;
+      } catch (err) {
+        console.warn(`[autoPublisher] ${chain[i].name} search failed ("${q}"):`, err.message);
+        // Only actually advance activeIndex once we confirm the NEXT provider exists
+        // and works — handled implicitly by the inner loop continuing to i+1.
       }
-    } catch (err) {
-      // One query failing isn't fatal — try the others before giving up.
-      console.warn(`[autoPublisher] search query failed ("${q}" via ${name}):`, err.message);
     }
     if (seen.size >= minSources * 2) break; // enough raw material already
   }
@@ -141,7 +158,7 @@ async function researchTopic(topic, { minSources = 3, providerPreference = 'auto
   // results whenever they exist.
   if (seen.size < minSources) {
     try {
-      const fallback = await fn(topic, { freshness: '' });
+      const fallback = await chain[activeIndex].fn(topic, { freshness: '' });
       for (const r of fallback) if (r.link && !seen.has(r.link)) seen.set(r.link, r);
     } catch (err) {
       console.warn(`[autoPublisher] unrestricted fallback search failed for "${topic}":`, err.message);
@@ -179,7 +196,7 @@ async function researchTopic(topic, { minSources = 3, providerPreference = 'auto
     }
   }
 
-  return { providerUsed: name, sources: opened };
+  return { providerUsed, sources: opened };
 }
 
-module.exports = { researchTopic, resolveProvider };
+module.exports = { researchTopic, buildProviderChain };

@@ -111,6 +111,24 @@
                 <input class="form-input" id="serperApiKey" type="password" placeholder="Leave blank to disable" autocomplete="off" />
                 <div class="form-hint">Lets Mica research actual current events instead of relying only on what the AI model already knows. Free tier at <a href="https://serper.dev" target="_blank" rel="noopener">serper.dev</a> (2,500 free searches).</div>
               </div>
+              <div class="form-group">
+                <label class="form-label">Google Search API</label>
+                <div id="googleSearchStatus" style="font-size:0.85rem;padding:8px 12px;border-radius:6px;background:#f1f5f9;color:#7a7a8a">Checking status…</div>
+                <div class="form-hint">Configured via <code>GOOGLE_SEARCH_API_KEY</code> and <code>GOOGLE_SEARCH_ENGINE_ID</code> server environment variables (not editable here — credentials never touch the database or the browser). When configured, Mica's research and the Auto Publisher try Google first, automatically falling back to Serper if it's unavailable.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Test Search</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input class="form-input" id="testSearchQuery" placeholder="e.g. Nigeria latest technology news" style="flex:1;min-width:200px" />
+                  <select class="form-select" id="testSearchProvider" style="max-width:140px">
+                    <option value="auto">Auto</option>
+                    <option value="google">Google</option>
+                    <option value="serper">Serper</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="testSearch()">Test</button>
+                </div>
+                <div id="testSearchResults" style="margin-top:10px"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -221,7 +239,41 @@
     if (!requireAdminRole()) return;
     renderAdminLayout('/admin-settings.html');
     loadSettings();
+    loadSearchStatus();
   });
+
+  async function loadSearchStatus() {
+    const el = document.getElementById('googleSearchStatus');
+    try {
+      const s = await adminFetch('/ai/search-status');
+      el.textContent = s.google ? 'Configured ✓' : 'Not configured — set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID';
+      el.style.background = s.google ? '#dcfce7' : '#f1f5f9';
+      el.style.color = s.google ? '#16a34a' : '#7a7a8a';
+    } catch (err) {
+      el.textContent = 'Could not check status';
+    }
+  }
+
+  async function testSearch() {
+    const query = document.getElementById('testSearchQuery').value.trim();
+    const provider = document.getElementById('testSearchProvider').value;
+    const resultsEl = document.getElementById('testSearchResults');
+    if (!query) return;
+    resultsEl.innerHTML = '<div style="font-size:0.85rem;color:#7a7a8a">Searching…</div>';
+    try {
+      const data = await adminFetch('/ai/test-search', { method: 'POST', body: JSON.stringify({ query, provider }) });
+      resultsEl.innerHTML = `
+        <div style="font-size:0.8rem;color:#16a34a;font-weight:600;margin-bottom:8px">${data.provider === 'google' ? 'Google Search' : 'Serper'}: Connected ✓ (${data.results.length} results)</div>
+        ${data.results.map((r, i) => `
+          <div style="padding:8px 0;border-top:1px solid #e0e4ef;font-size:0.82rem">
+            <div style="font-weight:600">${i + 1}. ${r.title}</div>
+            ${r.date ? `<div style="color:#7a7a8a">${r.date}</div>` : ''}
+            <a href="${r.link}" target="_blank" rel="noopener" style="color:#e63a2e;word-break:break-all">${r.link}</a>
+          </div>`).join('')}`;
+    } catch (err) {
+      resultsEl.innerHTML = `<div style="font-size:0.85rem;color:#e63a2e">${err.message}</div>`;
+    }
+  }
 
   const IMAGE_API_HINTS = {
     stability: 'Used by Mica\'s "Generate Featured Image" action. Leave blank to disable image generation.',

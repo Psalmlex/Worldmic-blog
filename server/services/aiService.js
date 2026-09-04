@@ -4,6 +4,14 @@ const { Settings } = require('../models/Models');
 // Fallback: if the admin hasn't configured anything in Settings yet, Groq via .env still works
 // out of the box (zero-config default, matches original behavior).
 const ENV_GROQ_KEY = process.env.GROQ_API_KEY;
+// Google Custom Search — credentials live in env vars only (never the Settings DB,
+// unlike Serper's key below), per explicit requirement: never expose these to the
+// frontend, and keep them out of the admin-editable settings surface entirely.
+const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
+function isGoogleSearchConfigured() {
+  return !!(GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID);
+}
 
 const TEXT_PROVIDER_DEFAULTS = {
   groq:       { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile' },
@@ -218,6 +226,79 @@ async function webSearch(query, { freshness = '' } = {}) {
   }
 }
 
+// ─── Web search (Google Custom Search JSON API) — a second, independent search
+// provider alongside Serper above. Normalizes into the exact same {title, snippet,
+// link, date} shape Serper uses, so every existing caller of these results (grounding-
+// context building, formatSearchResults, the Auto Publisher's recency scoring, etc.)
+// works unchanged regardless of which provider actually served the results.
+// freshness: same 'qdr:d'/'qdr:w'/'qdr:m'/'qdr:y' convention as webSearch() above —
+// mapped here to Google Custom Search's own 'dateRestrict' parameter (d1/w1/m1/y1).
+const FRESHNESS_TO_DATE_RESTRICT = { 'qdr:d': 'd1', 'qdr:w': 'w1', 'qdr:m': 'm1', 'qdr:y': 'y1' };
+
+async function googleSearch(query, { freshness = '' } = {}) {
+  if (!isGoogleSearchConfigured()) {
+    throw new Error('Google Search is not configured. Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID in the server environment to enable it.');
+  }
+  try {
+    const params = { key: GOOGLE_SEARCH_API_KEY, cx: GOOGLE_SEARCH_ENGINE_ID, q: query, num: 10 };
+    const dateRestrict = FRESHNESS_TO_DATE_RESTRICT[freshness];
+    if (dateRestrict) params.dateRestrict = dateRestrict;
+    const response = await axios.get('https://www.googleapis.com/customsearch/v1', { params, timeout: 15000 });
+    const items = response.data?.items || [];
+    const results = items.map(r => ({
+      title: r.title,
+      snippet: r.snippet || '',
+      link: r.link,
+      // Google CSE doesn't return a dedicated date field the way Serper does — best-
+      // effort pull from common metatag conventions when a source page provides them;
+      // absent otherwise, same as many Serper/browser results already are (existing
+      // downstream code already handles a missing date gracefully).
+      date: r.pagemap?.metatags?.[0]?.['article:published_time']
+        || r.pagemap?.metatags?.[0]?.['og:updated_time']
+        || '',
+    }));
+    if (!results.length) throw new Error('No search results found for that topic');
+    return results;
+  } catch (err) {
+    if (err.response) {
+      const reason = err.response.data?.error?.errors?.[0]?.reason || '';
+      const status = err.response.status;
+      if (status === 429 || /rateLimitExceeded|dailyLimitExceeded|quotaExceeded/i.test(reason)) {
+        throw new Error('Google Search API quota exceeded');
+      }
+      if (status === 401 || status === 403) throw new Error('Google Search API credentials are invalid');
+      throw new Error(`Google Search failed: ${err.response.data?.error?.message || status}`);
+    }
+    if (err.code === 'ECONNABORTED') throw new Error('Google Search request timed out');
+    throw err;
+  }
+}
+
+// ─── Unified search entrypoint: Google first, Serper as fallback ───────────────
+// Shared by BOTH the manual admin "Generate Post" flow (via generatePost's
+// useWebSearch option) and, as one link in a longer chain, the Auto Publisher's
+// research layer (searchService.js, which adds its own further browser-based
+// fallback on top of this). Single source of truth for the google→serper fallback
+// logic so it isn't duplicated between those two callers.
+// preference: 'google' | 'serper' | 'auto' (default). An explicit 'google' or
+// 'serper' choice uses only that provider and lets its error propagate untouched —
+// no silent fallback for an explicit choice, matching how Serper-only already
+// behaves today. 'auto' tries Google first (only if configured) and falls back to
+// Serper on ANY failure — unconfigured, invalid credentials, quota exceeded, timeout.
+async function performSearch(query, { freshness = '', preference = 'auto' } = {}) {
+  if (preference === 'google') return { provider: 'google', results: await googleSearch(query, { freshness }) };
+  if (preference === 'serper') return { provider: 'serper', results: await webSearch(query, { freshness }) };
+
+  if (isGoogleSearchConfigured()) {
+    try {
+      return { provider: 'google', results: await googleSearch(query, { freshness }) };
+    } catch (err) {
+      console.warn(`[aiService] Google Search failed, falling back to Serper: ${err.message}`);
+    }
+  }
+  return { provider: 'serper', results: await webSearch(query, { freshness }) };
+}
+
 function formatSearchResults(results) {
   return results.map((r, i) => `[${i + 1}] ${r.title}${r.date ? ` (${r.date})` : ''}\n${r.snippet}\nSource: ${r.link}`).join('\n\n');
 }
@@ -307,8 +388,12 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
     groundingContext += `\n\nRESEARCH CONTEXT (already gathered — use these for up-to-date facts, cite what's actually here, don't invent beyond it):\n${researchContext}`;
     hasResearchMaterial = true;
   } else if (useWebSearch) {
-    const results = await webSearch(effectiveTopic);
-    groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
+    // Google-first with automatic Serper fallback (see performSearch above). If
+    // GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_ENGINE_ID aren't set — the default until an
+    // admin configures them — this falls straight through to Serper exactly as
+    // before, so this is a no-op change for anyone not using the new provider.
+    const { results, provider } = await performSearch(effectiveTopic);
+    groundingContext += `\n\nCURRENT WEB SEARCH RESULTS for "${effectiveTopic}" (via ${provider} — use these for up-to-date facts — cite what's actually here, don't invent beyond it):\n${formatSearchResults(results)}`;
     hasResearchMaterial = true;
   }
   const productBlock = affiliateProductBlock(products);
@@ -750,4 +835,4 @@ async function generateInlineImages(content, topic) {
   return { content: updatedContent, insertedImages: inserted };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, verifyClaims };
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, googleSearch, performSearch, isGoogleSearchConfigured, verifyClaims };

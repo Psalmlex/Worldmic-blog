@@ -38,10 +38,12 @@ const autoPublisherConfigSchema = new mongoose.Schema({
   // How far back (days) to look when checking for duplicate/near-duplicate topics.
   duplicateCheckPeriodDays: { type: Number, default: 30, min: 1 },
 
-  // 'serper' uses the existing configured Serper key via aiService.webSearch.
-  // 'browser' uses the Puppeteer-based Google-search fallback (see searchService.js) —
-  // only relevant when no Serper key is configured.
-  searchProvider: { type: String, enum: ['auto', 'serper', 'browser'], default: 'auto' },
+  // 'google' uses the Google Custom Search API (GOOGLE_SEARCH_API_KEY/
+  // GOOGLE_SEARCH_ENGINE_ID env vars — see aiService.googleSearch). 'serper' uses the
+  // existing configured Serper key via aiService.webSearch. 'browser' uses the
+  // Puppeteer-based Google-search fallback (see searchService.js) — only reached in
+  // 'auto' mode when neither Google nor Serper is configured/working.
+  searchProvider: { type: String, enum: ['auto', 'google', 'serper', 'browser'], default: 'auto' },
 
   // Runtime/scheduling bookkeeping — not admin-editable directly.
   paused: { type: Boolean, default: false },

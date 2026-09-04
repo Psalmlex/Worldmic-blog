@@ -138,4 +138,32 @@ router.post('/chat', auth, async (req, res) => {
   }
 });
 
+// Whether Google Search (env-var credentials) and Serper (DB-stored key) are each
+// configured — lets the admin UI show status without ever exposing the credentials
+// themselves. Google's key/engine ID never leave the server, by design (env-only).
+router.get('/search-status', auth, async (req, res) => {
+  try {
+    const serperKey = await Settings.findOne({ key: 'serperApiKey' });
+    res.json({
+      google: ai.isGoogleSearchConfigured(),
+      serper: !!serperKey?.value,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin "Test Search" — lets an admin verify Google/Serper/Auto actually returns
+// results before relying on it, without exposing either provider's credentials.
+router.post('/test-search', auth, async (req, res) => {
+  const { query, provider = 'auto' } = req.body;
+  if (!query) return res.status(400).json({ error: 'Query is required' });
+  try {
+    const { results, provider: usedProvider } = await ai.performSearch(query, { preference: provider });
+    res.json({ provider: usedProvider, results: results.slice(0, 10) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
