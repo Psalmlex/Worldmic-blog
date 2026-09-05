@@ -10,6 +10,17 @@ const Post = require('./models/Post');
 const app = express();
 connectDB();
 
+// Render (like most PaaS) terminates TLS at its edge and forwards requests to this
+// app over plain HTTP internally, setting an X-Forwarded-Proto header to say so.
+// Without this, req.protocol always reports 'http' even though visitors are on
+// https — every canonical tag, OG:url, sitemap.xml URL, and robots.txt sitemap
+// reference built from req.protocol below was silently generating http:// URLs.
+// Google then sees a page served over https with a canonical/OG url pointing at a
+// DIFFERENT (http) URL, treats them as separate pages, and typically defers or skips
+// indexing the mismatched one — a very common real-world cause of "crawls fine but
+// won't index." No other code in this file reads req.ip, so this has no other effect.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
