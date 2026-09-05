@@ -331,6 +331,10 @@ app.use('/api/auto-publisher', require('./routes/autoPublisher'));
 // admin-enabled run; it never touches existing routes, models, or behavior.
 require('./services/schedulerService').start().catch(err => console.error('[autoPublisher] failed to start scheduler:', err.message));
 
+// Keep-alive self-ping — see keepAliveService.js for why. Independent of the Auto
+// Publisher scheduler above; runs regardless of whether Auto Publisher is enabled.
+require('./services/keepAliveService').start();
+
 // Seed default settings
 async function seedSettings() {
   const defaults = [
@@ -364,6 +368,11 @@ app.get('/ads.txt', async (req, res) => {
     res.status(500).send('# error');
   }
 });
+
+// Lightweight health check — deliberately does no DB query, just confirms the process
+// is alive and responding. Used by the self-ping keep-alive below, and safe for any
+// external uptime monitor (UptimeRobot, etc.) to hit as well.
+app.get('/api/health', (req, res) => res.status(200).send('ok'));
 
 // robots.txt — tells crawlers what to index and where the sitemap is
 app.get('/robots.txt', (req, res) => {
