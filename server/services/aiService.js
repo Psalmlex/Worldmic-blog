@@ -226,6 +226,30 @@ async function webSearch(query, { freshness = '' } = {}) {
   }
 }
 
+// ─── Real user search questions (Serper-specific) — surfaces the "People Also Ask"
+// and "Related Searches" data from an actual Google SERP, which reflects genuine
+// questions real users type, not AI-guessed topics. This is what lets topic
+// discovery prefer a real "how to X" question people are actually searching for.
+// Google's Custom Search JSON API doesn't expose this SERP feature at all, so this
+// is Serper-only. Fails safe: no Serper key configured, or the call itself failing,
+// just returns an empty list — this is a discovery enrichment, not something the
+// pipeline depends on to function.
+async function getRelatedQuestions(seedQuery) {
+  const apiKey = await getSetting('serperApiKey');
+  if (!apiKey) return [];
+  try {
+    const response = await axios.post('https://google.serper.dev/search', { q: seedQuery, num: 10 }, {
+      headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+    });
+    const paa = (response.data?.peopleAlsoAsk || []).map(q => q.question).filter(Boolean);
+    const related = (response.data?.relatedSearches || []).map(r => r.query).filter(Boolean);
+    return [...paa, ...related].slice(0, 10);
+  } catch (err) {
+    console.warn('[aiService] getRelatedQuestions failed:', err.message);
+    return [];
+  }
+}
+
 // ─── Web search (Google Custom Search JSON API) — a second, independent search
 // provider alongside Serper above. Normalizes into the exact same {title, snippet,
 // link, date} shape Serper uses, so every existing caller of these results (grounding-
@@ -874,4 +898,4 @@ async function generateInlineImages(content, topic) {
   return { content: updatedContent, insertedImages: inserted };
 }
 
-module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, googleSearch, performSearch, isGoogleSearchConfigured, verifyResearch, verifyClaims };
+module.exports = { callGroq, callGroqChat, callTextAI, chatWithAdmin, generatePost, reeditPost, generateCommentReply, getTrendingSuggestions, parseAdminCommand, generateImage, craftImagePrompt, generateFeaturedImage, generateInlineImages, fetchUrlContent, webSearch, getRelatedQuestions, googleSearch, performSearch, isGoogleSearchConfigured, verifyResearch, verifyClaims };

@@ -26,7 +26,7 @@ router.get('/config', async (req, res) => {
 const EDITABLE_FIELDS = [
   'enabled', 'mode', 'timezone', 'publishTimes', 'postsPerDay', 'categories',
   'wordCount', 'minResearchSources', 'imageGenerationEnabled', 'inlineImagesEnabled',
-  'duplicateCheckPeriodDays', 'searchProvider',
+  'duplicateCheckPeriodDays', 'searchProvider', 'useRealSearchQuestions',
 ];
 
 router.put('/config', async (req, res) => {

@@ -19,6 +19,12 @@ const autoPublisherConfigSchema = new mongoose.Schema({
 
   // Configurable categories to draw topics from — never hard-coded.
   categories: { type: [String], default: [] },
+  // Pulls real "People Also Ask" / related-search questions from a live Google SERP
+  // (via Serper) to ground topic discovery in genuine search demand instead of an AI
+  // guess — this is what lets the bot post "how to X" articles people are actually
+  // searching for. Uses one extra Serper call per job when on; costs nothing extra
+  // and degrades to pure AI discovery automatically if Serper isn't configured.
+  useRealSearchQuestions: { type: Boolean, default: true },
 
   wordCount: { type: String, enum: ['short', 'medium', 'long'], default: 'medium' },
   minResearchSources: { type: Number, default: 3, min: 1, max: 10 },

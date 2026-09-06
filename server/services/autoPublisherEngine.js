@@ -72,7 +72,7 @@ async function runJob(trigger = 'scheduled') {
   try {
     // ── 1. Topic discovery ──
     const recentTopics = (await AutoPublisherJob.find({}).sort({ createdAt: -1 }).limit(10).select('topic')).map(j => j.topic).filter(Boolean);
-    const discovered = await discoverTopic({ categories: config.categories, recentTopics });
+    const discovered = await discoverTopic({ categories: config.categories, recentTopics, useRealSearchQuestions: config.useRealSearchQuestions });
     job.topic = discovered.topic;
     job.category = discovered.category;
     await job.save();
