@@ -67,15 +67,40 @@ function reopenCookieConsent() {
   showCookieConsentBanner();
 }
 
-function initCookieConsent() {
+async function initCookieConsent() {
   const consent = getCookieConsent();
+
+  // An explicit prior choice (this device, this browser) always wins over a fresh
+  // geo-check — someone who already said yes/no shouldn't be re-asked just because
+  // this function re-evaluates their region.
   if (consent === 'accepted') {
     initAdSense();
     window.wmLoadAnalytics?.();
-  } else if (consent !== 'declined') {
+    return;
+  }
+  if (consent === 'declined') {
+    return; // ads/analytics stay off until they opt in via the footer link
+  }
+
+  // No stored choice yet — check whether this visitor's region legally requires
+  // asking BEFORE loading anything (EU/EEA/UK). Elsewhere, load by default; a
+  // visitor can still decline afterward via "Cookie Settings" in the footer.
+  // If the check itself fails (network hiccup, endpoint unreachable), fail toward
+  // showing the banner — same reasoning as the server-side default: a missed
+  // opportunity to auto-load costs nothing, an ungated EU/UK visitor risks real
+  // AdSense compliance consequences.
+  try {
+    const res = await fetch('/api/consent-required');
+    const { required } = await res.json();
+    if (required) {
+      showCookieConsentBanner();
+    } else {
+      initAdSense();
+      window.wmLoadAnalytics?.();
+    }
+  } catch {
     showCookieConsentBanner();
   }
-  // consent === 'declined': do nothing — ads/analytics stay off until they opt in via the footer link
 }
 
 // ===== API HELPERS =====
