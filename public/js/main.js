@@ -67,12 +67,42 @@ function reopenCookieConsent() {
   showCookieConsentBanner();
 }
 
-async function initCookieConsent() {
+// EU/EEA/UK timezone names — where cookie consent must be asked BEFORE loading
+// analytics/ads, not just offered as an option. Elsewhere, ads/analytics load by
+// default and a visitor can still opt out via the "Cookie Settings" footer link,
+// which most jurisdictions don't legally require but is good practice regardless.
+// Timezone is a deliberately zero-dependency, zero-network-call substitute for IP
+// geolocation: no npm package, no server-side lookup, no visitor IP ever inspected
+// for this purpose at all. It's an imperfect proxy (a traveler or VPN user could get
+// a different read than their legal residence), but for deciding whether to show a
+// consent prompt, "close enough, and fails toward asking when uncertain" is the
+// right bar — not pinpoint accuracy.
+const CONSENT_REQUIRED_TIMEZONES = new Set([
+  'Europe/Vienna', 'Europe/Brussels', 'Europe/Sofia', 'Europe/Zagreb', 'Europe/Nicosia',
+  'Europe/Prague', 'Europe/Copenhagen', 'Europe/Tallinn', 'Europe/Helsinki', 'Europe/Paris',
+  'Europe/Berlin', 'Europe/Athens', 'Europe/Budapest', 'Europe/Dublin', 'Europe/Rome',
+  'Europe/Riga', 'Europe/Vilnius', 'Europe/Luxembourg', 'Europe/Malta', 'Europe/Amsterdam',
+  'Europe/Warsaw', 'Europe/Lisbon', 'Europe/Bucharest', 'Europe/Bratislava', 'Europe/Ljubljana',
+  'Europe/Madrid', 'Europe/Stockholm', // EU
+  'Atlantic/Reykjavik', 'Europe/Vaduz', 'Europe/Oslo', // EEA
+  'Europe/London', // UK
+]);
+
+function isConsentRequiredRegion() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return CONSENT_REQUIRED_TIMEZONES.has(tz);
+  } catch {
+    return true; // Intl API unsupported/unavailable — fail toward asking, not skipping
+  }
+}
+
+function initCookieConsent() {
   const consent = getCookieConsent();
 
   // An explicit prior choice (this device, this browser) always wins over a fresh
-  // geo-check — someone who already said yes/no shouldn't be re-asked just because
-  // this function re-evaluates their region.
+  // region check — someone who already said yes/no shouldn't be re-asked just
+  // because this function re-evaluates their timezone.
   if (consent === 'accepted') {
     initAdSense();
     window.wmLoadAnalytics?.();
@@ -82,24 +112,14 @@ async function initCookieConsent() {
     return; // ads/analytics stay off until they opt in via the footer link
   }
 
-  // No stored choice yet — check whether this visitor's region legally requires
-  // asking BEFORE loading anything (EU/EEA/UK). Elsewhere, load by default; a
-  // visitor can still decline afterward via "Cookie Settings" in the footer.
-  // If the check itself fails (network hiccup, endpoint unreachable), fail toward
-  // showing the banner — same reasoning as the server-side default: a missed
-  // opportunity to auto-load costs nothing, an ungated EU/UK visitor risks real
-  // AdSense compliance consequences.
-  try {
-    const res = await fetch('/api/consent-required');
-    const { required } = await res.json();
-    if (required) {
-      showCookieConsentBanner();
-    } else {
-      initAdSense();
-      window.wmLoadAnalytics?.();
-    }
-  } catch {
+  // No stored choice yet — only ask BEFORE loading anything if this visitor's
+  // timezone suggests EU/EEA/UK. Elsewhere, load by default; a visitor can still
+  // decline afterward via "Cookie Settings" in the footer.
+  if (isConsentRequiredRegion()) {
     showCookieConsentBanner();
+  } else {
+    initAdSense();
+    window.wmLoadAnalytics?.();
   }
 }
 

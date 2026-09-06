@@ -374,36 +374,6 @@ app.get('/ads.txt', async (req, res) => {
 // external uptime monitor (UptimeRobot, etc.) to hit as well.
 app.get('/api/health', (req, res) => res.status(200).send('ok'));
 
-// EU/EEA/UK country codes — where cookie consent must be asked BEFORE loading
-// analytics/ads, not just offered as an option. Elsewhere, ads/analytics load by
-// default and a visitor can still opt out via the "Cookie Settings" footer link,
-// which most jurisdictions don't legally require but is good practice regardless.
-const CONSENT_REQUIRED_COUNTRIES = new Set([
-  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE',
-  'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', // EU
-  'IS', 'LI', 'NO', // EEA
-  'GB', // UK
-]);
-
-// Public, unauthenticated — called by every visitor's browser before deciding
-// whether to show the cookie banner or just load ads/analytics by default. Uses
-// geoip-lite (a local, offline database) so visitor IPs are never sent to any
-// third-party geolocation service. When the IP can't be resolved to a country at
-// all (some ranges genuinely aren't in the database), this defaults to REQUIRING
-// consent — a false positive just costs a click, but a false negative for an actual
-// EU/UK visitor risks real AdSense compliance consequences, so uncertainty should
-// always fail toward asking, not toward skipping the ask.
-app.get('/api/consent-required', (req, res) => {
-  try {
-    const geoip = require('geoip-lite');
-    const geo = geoip.lookup(req.ip);
-    const required = !geo?.country || CONSENT_REQUIRED_COUNTRIES.has(geo.country);
-    res.json({ required });
-  } catch (err) {
-    res.json({ required: true }); // same fail-safe reasoning as the unresolved-IP case above
-  }
-});
-
 // robots.txt — tells crawlers what to index and where the sitemap is
 app.get('/robots.txt', (req, res) => {
   const base = `${req.protocol}://${req.get('host')}`;
