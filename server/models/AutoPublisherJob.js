@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const autoPublisherJobSchema = new mongoose.Schema({
   topic: { type: String, default: '' },
   category: { type: String, default: '' },
+  // Which of aiService's CONTENT_TYPES voices this post was written in (blog, news,
+  // review, etc.) — chosen per-topic by topic discovery, not fixed per-category, so
+  // it's worth recording per job to confirm output is genuinely varying.
+  contentType: { type: String, default: '' },
 
   // Overall job lifecycle status.
   status: {

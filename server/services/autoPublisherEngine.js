@@ -75,6 +75,7 @@ async function runJob(trigger = 'scheduled') {
     const discovered = await discoverTopic({ categories: config.categories, recentTopics, useRealSearchQuestions: config.useRealSearchQuestions });
     job.topic = discovered.topic;
     job.category = discovered.category;
+    job.contentType = discovered.contentType;
     await job.save();
 
     // ── 2. Duplicate check (before spending any research/writing effort) ──
@@ -130,14 +131,17 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
-    // ── 4. Write (reuses the existing multi-stage AI writing pipeline) ──
+    // ── 4. Write (reuses the existing multi-stage AI writing pipeline). contentType
+    // comes from topic discovery, chosen per-topic (not a fixed per-category label),
+    // so different categories — and different topics within the same category —
+    // genuinely read in distinct voices instead of every post sounding the same. ──
     job.articleStatus = 'running';
     await job.save();
     let postData;
     try {
       postData = await ai.generatePost(discovered.topic, '', discovered.category, {
         length: config.wordCount,
-        contentType: 'article',
+        contentType: discovered.contentType,
         researchContext,
       });
       job.articleStatus = 'done';

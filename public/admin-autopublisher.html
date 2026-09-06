@@ -245,7 +245,7 @@
       document.getElementById('jobsBody').innerHTML = jobs.length ? jobs.map(j => `
         <tr>
           <td style="max-width:220px">${j.topic || '<em>discovering…</em>'}</td>
-          <td>${j.category || '—'}</td>
+          <td>${j.category || '—'}${j.contentType ? `<div style="font-size:0.7rem;color:#7a7a8a;text-transform:capitalize">${j.contentType.replace(/([A-Z])/g, ' $1')}</div>` : ''}</td>
           <td>${badgeFor(j.status)}${j.error ? `<div style="font-size:0.7rem;color:#c0392b;margin-top:4px;max-width:200px">${j.error}</div>` : ''}</td>
           <td>${badgeFor(j.researchStatus)}</td>
           <td>${badgeFor(j.articleStatus)}</td>

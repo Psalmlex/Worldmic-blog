@@ -16,6 +16,20 @@ function parseTagged(raw, keys) {
   return result;
 }
 
+// Must match the keys of CONTENT_TYPES in aiService.js exactly — each has a genuinely
+// distinct voice/structure there. Picking per-TOPIC rather than per-category means
+// even two posts in the same category read differently when the topics warrant it
+// (a phone-launch "Technology" post reads as news/review; a "how to configure your
+// router" one reads as a blog how-to) — never a single flat voice across everything.
+const VALID_CONTENT_TYPES = ['blog', 'article', 'affiliate', 'news', 'review', 'buyingGuide', 'opinion'];
+// Case-insensitive lookup: LLMs don't reliably match exact casing even when told to,
+// and rejecting "News" just because it isn't lowercase "news" would silently defeat
+// this feature by falling back to the generic 'article' voice far more than it should.
+const CONTENT_TYPE_LOOKUP = new Map(VALID_CONTENT_TYPES.map(ct => [ct.toLowerCase(), ct]));
+function normalizeContentType(raw) {
+  return CONTENT_TYPE_LOOKUP.get((raw || '').trim().toLowerCase()) || 'article';
+}
+
 async function resolveCategoryPool(configuredCategories = []) {
   if (configuredCategories?.length) return configuredCategories;
   const existing = await Post.distinct('category', { status: 'published' });
@@ -64,12 +78,23 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 [TOPIC]A specific, concrete topic — not a vague category label. If it's a current-events topic, make the recency explicit in the topic itself (name what's actually happening now, not a generic evergreen framing). If it's a "how to" question sourced from real search demand above, phrase the topic as that question or its direct answer[/TOPIC]
 [ANGLE]The specific angle or reason this is worth publishing right now, on ${todayStr}, one sentence[/ANGLE]
 [NEEDS_CURRENT_INFO]true or false — true if this topic depends on recent/current facts that require a live web search to write accurately, false if it's evergreen and safe to write from general knowledge[/NEEDS_CURRENT_INFO]
-[SENSITIVE]true or false — true if this topic touches health, finance, politics, breaking news, or legal advice and needs stricter validation before publishing[/SENSITIVE]`;
+[SENSITIVE]true or false — true if this topic touches health, finance, politics, breaking news, or legal advice and needs stricter validation before publishing[/SENSITIVE]
+[CONTENT_TYPE]Pick the ONE format that genuinely best fits THIS SPECIFIC TOPIC — not a default, not whatever this category usually gets. Choose exactly one of: blog, article, news, review, buyingGuide, affiliate, opinion.
+- news: something specific just happened and the value is reporting it
+- review: the topic centers on one specific product/service and a verdict on it
+- buyingGuide: helping a reader choose between several real options for a need
+- affiliate: product recommendations aimed at a purchase decision
+- opinion: the topic calls for a defended stance/argument, not neutral coverage
+- blog: a practical "how to" / personal-experience / conversational take
+- article: in-depth, analytical explainer that doesn't fit any of the above
+[/CONTENT_TYPE]`;
 
   const raw = await ai.callGroq(system, `Category: ${category}. Today is ${todayStr}. Discover one genuinely current topic.`, 400);
-  const parsed = parseTagged(raw, ['TOPIC', 'ANGLE', 'NEEDS_CURRENT_INFO', 'SENSITIVE']);
+  const parsed = parseTagged(raw, ['TOPIC', 'ANGLE', 'NEEDS_CURRENT_INFO', 'SENSITIVE', 'CONTENT_TYPE']);
 
   if (!parsed.TOPIC) throw new Error('Topic discovery failed: the AI did not return a usable topic.');
+
+  const contentType = normalizeContentType(parsed.CONTENT_TYPE);
 
   return {
     topic: parsed.TOPIC,
@@ -77,6 +102,7 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
     angle: parsed.ANGLE || '',
     needsCurrentInfo: /true/i.test(parsed.NEEDS_CURRENT_INFO || ''),
     sensitive: /true/i.test(parsed.SENSITIVE || ''),
+    contentType,
   };
 }
 
