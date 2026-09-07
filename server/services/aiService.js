@@ -428,7 +428,7 @@ CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 ${toneInstruction}
 Plan sections that fit this content type. For Blog/Article/News/Opinion, name a SPECIFIC angle per section (a mechanism, a tradeoff, a counter-intuitive point) — not a generic label. For Affiliate/Review/Buying Guide, structure around genuine decision factors, honest comparison points, and a clear verdict/recommendation section.
 The piece's title is already displayed separately as a large heading above the content — do NOT plan a first section called "Introduction" or one whose heading just restates the title/topic. Section 1 should open directly with substance (a specific claim, scenario, or stat), and every section heading must add new information the title didn't already say.
-${hasResearchMaterial ? 'Ground the outline in the research context provided — use real specifics from it, not generic placeholders.' : ''}${productBlock}
+${hasResearchMaterial ? `Research material is grounding for FACTS, not a template to summarize. If this piece just restates what the research already says in the same order, it adds nothing a reader couldn't get by reading one of those sources directly — that's the single biggest reason content fails to rank or matter. Instead: connect facts the sources don't connect themselves, work out a concrete practical implication for the reader (what should they actually do or expect because of this), or take a specific stance the research supports but doesn't state outright. The THESIS below must be a genuine synthesis or angle — not a restatement of "what happened."` : ''}${productBlock}
 
 Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 
