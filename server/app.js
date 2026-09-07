@@ -136,6 +136,9 @@ app.get('/', async (req, res, next) => {
     const fs = require('fs');
     const filePath = path.join(__dirname, '../public/index.html');
     let html = fs.readFileSync(filePath, 'utf8');
+    const base = `${req.protocol}://${req.get('host')}`;
+    const siteNameSetting = await Settings.findOne({ key: 'siteName' }).catch(() => null);
+    const siteName = siteNameSetting?.value || 'World Mic';
 
     const posts = await Post.find({ status: 'published' })
       .sort({ createdAt: -1 })
@@ -171,6 +174,19 @@ app.get('/', async (req, res, next) => {
           `<div class="posts-grid" id="postsGrid">${gridHtml}</div>`
         );
     }
+
+    // WebSite structured data — this is what Google's own docs call the most
+    // reliable way to declare a site's real name for search results, since Google
+    // otherwise sometimes falls back to inferring a name from the hosting platform's
+    // subdomain (e.g. showing "Render" instead of "World Mic" for a *.onrender.com
+    // site). og:site_name alone (already present) is a weaker signal than this.
+    const websiteJsonLd = `<script type="application/ld+json">${JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: siteName,
+      url: base,
+    }).replace(/</g, '\\u003c')}</script>`;
+    html = html.replace('</head>', `${websiteJsonLd}\n</head>`);
 
     res.send(html);
   } catch (err) {
