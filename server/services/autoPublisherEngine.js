@@ -1,10 +1,14 @@
 const AutoPublisherJob = require('../models/AutoPublisherJob');
 const AutoPublisherConfig = require('../models/AutoPublisherConfig');
 const Post = require('../models/Post');
+const AffiliateProduct = require('../models/AffiliateProduct');
+const AffiliateLink = require('../models/AffiliateLink');
 const ai = require('./aiService'); // existing article/image generation — reused, not duplicated
 const { discoverTopic } = require('./topicDiscoveryService');
 const { checkDuplicate } = require('./duplicateCheckService');
 const { researchTopic } = require('./searchService');
+const strategy = require('./contentStrategyEngine');
+const { buildRelatedReadingBlock } = require('./internalLinkingService');
 
 const SENSITIVE_MIN_EXTRA_SOURCES = 2; // stricter research bar for health/finance/politics/breaking news
 
@@ -70,12 +74,23 @@ async function runJob(trigger = 'scheduled') {
   const job = await AutoPublisherJob.create({ trigger, status: 'running', startedAt: new Date() });
 
   try {
-    // ── 1. Topic discovery ──
-    const recentTopics = (await AutoPublisherJob.find({}).sort({ createdAt: -1 }).limit(10).select('topic')).map(j => j.topic).filter(Boolean);
-    const discovered = await discoverTopic({ categories: config.categories, recentTopics, useRealSearchQuestions: config.useRealSearchQuestions });
+    // ── 1. Topic discovery — now includes format-archetype selection via the
+    // Content Strategy Engine (see topicDiscoveryService + contentStrategyEngine). ──
+    const recentJobs = await AutoPublisherJob.find({}).sort({ createdAt: -1 }).limit(10).select('topic format');
+    const recentTopics = recentJobs.map(j => j.topic).filter(Boolean);
+    const recentFormats = recentJobs.map(j => j.format).filter(Boolean).slice(0, 5);
+    const discovered = await discoverTopic({
+      categories: config.categories,
+      recentTopics,
+      recentFormats,
+      useRealSearchQuestions: config.useRealSearchQuestions,
+      affiliateModeEnabled: config.affiliateModeEnabled,
+    });
     job.topic = discovered.topic;
     job.category = discovered.category;
     job.contentType = discovered.contentType;
+    job.format = discovered.format;
+    job.formatLabel = discovered.formatLabel;
     await job.save();
 
     // ── 2. Duplicate check (before spending any research/writing effort) ──
@@ -131,18 +146,52 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
+    // ── 3b. Affiliate Mode — ONLY runs when explicitly enabled AND the chosen
+    // format is affiliate-suitable AND the admin's own Product Pool actually has a
+    // matching-category product. Deliberately separate from the normal blog path:
+    // when any of those conditions isn't met, this does nothing and the post is
+    // written exactly as any normal post would be. Never searches for or invents
+    // product URLs — only draws from links the admin themselves added to the pool
+    // (see AffiliateProduct + routes/affiliate.js), since those are the only URLs
+    // that actually carry the admin's real affiliate tracking. ──
+    let affiliateGenProducts = [];
+    let affiliateProductDocs = [];
+    let affiliateLinkDocs = [];
+    if (config.affiliateModeEnabled && strategy.isAffiliateSuitable(discovered.format)) {
+      affiliateProductDocs = await AffiliateProduct.find({ category: discovered.category, active: true })
+        .sort({ lastUsedAt: 1 }) // least-recently-used first — spreads usage across the pool instead of always picking the same product
+        .limit(config.maxAffiliateProductsPerPost);
+      if (affiliateProductDocs.length) {
+        for (const product of affiliateProductDocs) {
+          const link = await AffiliateLink.create({ url: product.url, label: product.name, network: product.network, jobId: job._id });
+          affiliateLinkDocs.push(link);
+        }
+        affiliateGenProducts = affiliateProductDocs.map((p, i) => ({
+          name: p.name,
+          url: `/go/${affiliateLinkDocs[i]._id}`, // tracked redirect — see the public /go/:id route in app.js
+          notes: p.price ? `${p.currency || ''} ${p.price}`.trim() : '',
+        }));
+      }
+      // No matching pool products for this category is NOT an error — the post is
+      // simply written as a normal, non-affiliate post of the same chosen format.
+    }
+
     // ── 4. Write (reuses the existing multi-stage AI writing pipeline). contentType
     // comes from topic discovery, chosen per-topic (not a fixed per-category label),
     // so different categories — and different topics within the same category —
-    // genuinely read in distinct voices instead of every post sounding the same. ──
+    // genuinely read in distinct voices instead of every post sounding the same.
+    // styleInstruction (from the Content Strategy Engine) rides in through the
+    // EXISTING `tone` parameter generatePost already supports — no changes were
+    // needed to aiService.js's writing pipeline itself for the format engine. ──
     job.articleStatus = 'running';
     await job.save();
     let postData;
     try {
-      postData = await ai.generatePost(discovered.topic, '', discovered.category, {
+      postData = await ai.generatePost(discovered.topic, discovered.styleInstruction, discovered.category, {
         length: config.wordCount,
         contentType: discovered.contentType,
         researchContext,
+        products: affiliateGenProducts,
       });
       job.articleStatus = 'done';
     } catch (err) {
@@ -215,7 +264,14 @@ async function runJob(trigger = 'scheduled') {
     }
     await job.save();
 
-    // ── 7. Create post (existing Post model — slug/excerpt fallback logic untouched) ──
+    // ── 7. Internal linking — every auto-published post now gets a related-reading
+    // block (previously only the Affiliate Publisher had this; regular auto-published
+    // posts had none, which was a real gap). Reuses the SAME helper as the Affiliate
+    // Publisher rather than a second implementation. ──
+    const relatedBlock = await buildRelatedReadingBlock(discovered.category);
+    postData.content += relatedBlock;
+
+    // ── 8. Create post (existing Post model — slug/excerpt fallback logic untouched) ──
     const wantsPublish = config.mode === 'autopublish' && !validation.requiresManualReview;
     const post = new Post({
       title: postData.title,
@@ -233,6 +289,14 @@ async function runJob(trigger = 'scheduled') {
     });
     await post.save();
 
+    // Backfill postId on any affiliate links created in step 3b, and mark the pool
+    // products as just-used so rotation spreads across the pool over time.
+    if (affiliateLinkDocs.length) {
+      await AffiliateLink.updateMany({ _id: { $in: affiliateLinkDocs.map(l => l._id) } }, { postId: post._id });
+      await AffiliateProduct.updateMany({ _id: { $in: affiliateProductDocs.map(p => p._id) } }, { lastUsedAt: new Date() });
+      job.affiliateProductsUsed = affiliateProductDocs.map(p => ({ name: p.name, url: p.url }));
+    }
+
     job.postId = post._id;
     job.publishStatus = post.status === 'published' ? 'published' : 'draft';
     job.status = 'completed';
@@ -244,7 +308,7 @@ async function runJob(trigger = 'scheduled') {
     return job;
   } catch (err) {
     // Catch-all: any unexpected failure never leaves a half-published post — the Post
-    // is only created in step 7, after every prior stage succeeded.
+    // is only created in step 8, after every prior stage succeeded.
     job.status = 'failed';
     job.error = err.message;
     job.completedAt = new Date();

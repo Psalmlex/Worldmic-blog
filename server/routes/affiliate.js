@@ -226,4 +226,57 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// ── Product Pool — real affiliate links the Auto Publisher draws from when
+// Affiliate Mode is enabled (see autoPublisherEngine.js). Reuses the exact same
+// fetch/image logic as the manual generation modes above — no duplicate logic. ──
+const AffiliateProduct = require('../models/AffiliateProduct');
+
+router.post('/pool', async (req, res) => {
+  try {
+    const { url, category, adminConfirmedImageRights } = req.body;
+    if (!url) return res.status(400).json({ error: 'url is required' });
+    const info = await affiliate.fetchProductInfo(url);
+    const imageResult = await affiliate.handleProductImage(info, { adminConfirmedRights: adminConfirmedImageRights });
+    const product = await AffiliateProduct.create({
+      url, name: info.name, price: info.price, currency: info.currency, network: info.network,
+      imageUrl: info.imageUrl, category: category || 'General', ...imageResult,
+    });
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/pool', async (req, res) => {
+  try {
+    const products = await AffiliateProduct.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/pool/:id', async (req, res) => {
+  try {
+    const { active, category } = req.body;
+    const update = {};
+    if (active !== undefined) update.active = active;
+    if (category !== undefined) update.category = category;
+    const product = await AffiliateProduct.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!product) return res.status(404).json({ error: 'Not found' });
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/pool/:id', async (req, res) => {
+  try {
+    await AffiliateProduct.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Removed from pool.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

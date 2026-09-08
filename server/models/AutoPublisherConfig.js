@@ -25,6 +25,14 @@ const autoPublisherConfigSchema = new mongoose.Schema({
   // searching for. Uses one extra Serper call per job when on; costs nothing extra
   // and degrades to pure AI discovery automatically if Serper isn't configured.
   useRealSearchQuestions: { type: Boolean, default: true },
+  // Content Strategy Engine: when on, topic discovery may ALSO propose affiliate-
+  // suitable formats (product review, comparison, best-X-for-Y, roundup) and, when
+  // one is chosen, the engine draws real links from the admin-maintained Product
+  // Pool (AffiliateProduct) to insert — never invented/discovered URLs. Off by
+  // default; when off, only the normal non-affiliate formats are ever proposed,
+  // keeping this completely separate from the regular blog path.
+  affiliateModeEnabled: { type: Boolean, default: false },
+  maxAffiliateProductsPerPost: { type: Number, default: 2, min: 1, max: 5 },
 
   wordCount: { type: String, enum: ['short', 'medium', 'long'], default: 'medium' },
   minResearchSources: { type: Number, default: 3, min: 1, max: 10 },

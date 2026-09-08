@@ -42,6 +42,38 @@
         </div>
       </div>
 
+      <!-- Product Pool — feeds the Auto Publisher's Affiliate Mode -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>Product Pool</h2></div>
+        <div style="padding:20px">
+          <p style="font-size:0.85rem;color:#7a7a8a;margin-bottom:16px">
+            Add your real affiliate links here, tagged by category. When <strong>Affiliate Mode</strong> is on in <a href="/admin-autopublisher.html">AI Auto Publisher</a> settings, it draws from this pool automatically when a topic calls for a product review, comparison, or roundup — it never searches for or invents product URLs on its own, since only links from here carry your actual affiliate tracking.
+          </p>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Product URL (your real affiliate link)</label>
+              <input class="form-input" id="poolUrl" placeholder="https://example.com/your-affiliate-link" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <input class="form-input" id="poolCategory" placeholder="e.g. Technology" />
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;margin-bottom:14px">
+            <input type="checkbox" id="poolConfirmImageRights" style="width:auto" />
+            I confirm I have rights to use this product's image
+          </label>
+          <button class="btn btn-primary" onclick="addToPool()">Add to Pool</button>
+          <span id="poolMsg" style="margin-left:12px;font-size:0.85rem"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Product</th><th>Category</th><th>Network</th><th>Image</th><th>Status</th><th>Last Used</th><th>Actions</th></tr></thead>
+            <tbody id="poolBody"><tr><td colspan="7" style="text-align:center;padding:20px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Generate -->
       <div class="table-card" style="margin-top:24px">
         <div class="table-header"><h2>Generate Affiliate Article</h2></div>
@@ -233,10 +265,63 @@
     } catch (err) { showToast(err.message, 'error'); }
   }
 
+  async function loadPool() {
+    try {
+      const products = await adminFetch('/affiliate/pool');
+      document.getElementById('poolBody').innerHTML = products.length ? products.map(p => `
+        <tr>
+          <td style="max-width:200px">${escapeHtml(p.name) || '<em>unnamed</em>'}</td>
+          <td>${escapeHtml(p.category)}</td>
+          <td>${p.network}</td>
+          <td><span class="badge ${p.imageStatus === 'uploaded' ? 'badge-published' : p.imageStatus === 'failed' ? 'badge-rejected' : 'badge-draft'}">${p.imageStatus}</span>${p.imageNotice ? `<div style="font-size:0.68rem;color:#9a9aaa;margin-top:2px;max-width:180px">${escapeHtml(p.imageNotice)}</div>` : ''}</td>
+          <td><span class="badge ${p.active ? 'badge-published' : 'badge-draft'}">${p.active ? 'active' : 'inactive'}</span></td>
+          <td style="font-size:0.78rem">${p.lastUsedAt ? new Date(p.lastUsedAt).toLocaleDateString() : 'never'}</td>
+          <td style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-secondary" onclick="togglePoolActive('${p._id}', ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+            <button class="btn btn-sm btn-secondary" onclick="deleteFromPool('${p._id}')">Delete</button>
+          </td>
+        </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;padding:20px;color:#9a9aaa">No products in the pool yet — add one above.</td></tr>`;
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function addToPool() {
+    const url = document.getElementById('poolUrl').value.trim();
+    const category = document.getElementById('poolCategory').value.trim() || 'General';
+    const msg = document.getElementById('poolMsg');
+    if (!url) { msg.textContent = 'Enter a product URL first.'; msg.style.color = '#c0392b'; return; }
+    msg.textContent = 'Fetching product info…';
+    msg.style.color = '';
+    try {
+      await adminFetch('/affiliate/pool', {
+        method: 'POST',
+        body: JSON.stringify({ url, category, adminConfirmedImageRights: document.getElementById('poolConfirmImageRights').checked }),
+      });
+      msg.textContent = 'Added to pool.';
+      msg.style.color = '#16a34a';
+      document.getElementById('poolUrl').value = '';
+      loadPool();
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.style.color = '#c0392b';
+    }
+  }
+
+  async function togglePoolActive(id, active) {
+    try { await adminFetch(`/affiliate/pool/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }); loadPool(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteFromPool(id) {
+    if (!confirm('Remove this product from the pool? It will no longer be used by the Auto Publisher (existing published posts and their click history are unaffected).')) return;
+    try { await adminFetch(`/affiliate/pool/${id}`, { method: 'DELETE' }); loadPool(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     renderAdminLayout('/admin-affiliate.html');
     updateModeUI();
     await loadAnalytics();
+    await loadPool();
     await loadJobs();
   });
 </script>

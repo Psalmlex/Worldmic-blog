@@ -6,7 +6,12 @@ const mongoose = require('mongoose');
 // be counted without it. See the public GET /go/:id route in app.js.
 const affiliateLinkSchema = new mongoose.Schema({
   postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', index: true },
-  jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'AffiliateJob', index: true },
+  // Deliberately no fixed `ref` here — this is created by BOTH the manual Affiliate
+  // Publisher (AffiliateJob) and the autonomous Auto Publisher (AutoPublisherJob)
+  // when Affiliate Mode draws from the Product Pool. `ref` only affects populate()
+  // convenience, and nothing currently populates this field, so leaving it untyped
+  // avoids a misleading fixed reference to just one of the two possible collections.
+  jobId: { type: mongoose.Schema.Types.ObjectId, index: true },
   url: { type: String, required: true }, // the real destination — never shown directly in the article
   label: { type: String, default: '' }, // product name, for the analytics "Top Products" table
   network: { type: String, default: 'generic' },

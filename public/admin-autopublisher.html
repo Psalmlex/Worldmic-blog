@@ -76,6 +76,15 @@
             <input type="checkbox" id="cfgRealQuestions" style="width:auto" /> Ground topics in real Google search questions ("how to" / People Also Ask)
           </label>
 
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500;margin-bottom:8px">
+            <input type="checkbox" id="cfgAffiliateMode" style="width:auto" /> Affiliate Mode — may choose product review / comparison / best-X-for-Y / roundup formats and insert links from your <a href="/admin-affiliate.html">Product Pool</a>
+          </label>
+          <div class="form-group" style="margin-left:26px;max-width:220px">
+            <label class="form-label">Max products per post</label>
+            <input class="form-input" type="number" min="1" max="5" id="cfgMaxAffiliateProducts" />
+            <small style="color:#9a9aaa">Only inserts links when the Product Pool has a matching-category product — never invents or searches for one. Off by default, kept separate from the normal blog path.</small>
+          </div>
+
           <div class="form-row-2">
             <div class="form-group">
               <label class="form-label">Minimum Research Sources</label>
@@ -167,6 +176,8 @@
       document.getElementById('cfgWordCount').value = c.wordCount;
       document.getElementById('cfgCategories').value = (c.categories || []).join(', ');
       document.getElementById('cfgRealQuestions').checked = c.useRealSearchQuestions;
+      document.getElementById('cfgAffiliateMode').checked = c.affiliateModeEnabled;
+      document.getElementById('cfgMaxAffiliateProducts').value = c.maxAffiliateProductsPerPost;
       document.getElementById('cfgMinSources').value = c.minResearchSources;
       document.getElementById('cfgDupDays').value = c.duplicateCheckPeriodDays;
       document.getElementById('cfgSearchProvider').value = c.searchProvider;
@@ -190,6 +201,8 @@
       postsPerDay: times.length || 1,
       categories,
       useRealSearchQuestions: document.getElementById('cfgRealQuestions').checked,
+      affiliateModeEnabled: document.getElementById('cfgAffiliateMode').checked,
+      maxAffiliateProductsPerPost: Number(document.getElementById('cfgMaxAffiliateProducts').value) || 2,
       wordCount: document.getElementById('cfgWordCount').value,
       minResearchSources: Number(document.getElementById('cfgMinSources').value) || 3,
       duplicateCheckPeriodDays: Number(document.getElementById('cfgDupDays').value) || 30,
@@ -245,7 +258,7 @@
       document.getElementById('jobsBody').innerHTML = jobs.length ? jobs.map(j => `
         <tr>
           <td style="max-width:220px">${j.topic || '<em>discovering…</em>'}</td>
-          <td>${j.category || '—'}${j.contentType ? `<div style="font-size:0.7rem;color:#7a7a8a;text-transform:capitalize">${j.contentType.replace(/([A-Z])/g, ' $1')}</div>` : ''}</td>
+          <td>${j.category || '—'}${j.formatLabel ? `<div style="font-size:0.7rem;color:#7a7a8a">${j.formatLabel}</div>` : (j.contentType ? `<div style="font-size:0.7rem;color:#7a7a8a;text-transform:capitalize">${j.contentType.replace(/([A-Z])/g, ' $1')}</div>` : '')}${j.affiliateProductsUsed?.length ? `<div style="font-size:0.7rem;color:#16a34a;margin-top:2px">+ ${j.affiliateProductsUsed.length} affiliate link(s)</div>` : ''}</td>
           <td>${badgeFor(j.status)}${j.error ? `<div style="font-size:0.7rem;color:#c0392b;margin-top:4px;max-width:200px">${j.error}</div>` : ''}</td>
           <td>${badgeFor(j.researchStatus)}</td>
           <td>${badgeFor(j.articleStatus)}</td>

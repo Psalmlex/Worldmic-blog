@@ -7,6 +7,16 @@ const autoPublisherJobSchema = new mongoose.Schema({
   // review, etc.) — chosen per-topic by topic discovery, not fixed per-category, so
   // it's worth recording per job to confirm output is genuinely varying.
   contentType: { type: String, default: '' },
+  // Content Strategy Engine — the specific format archetype chosen (e.g.
+  // 'productReview', 'mythsVsFacts'), separate from contentType above (contentType
+  // is the underlying writing voice; format is the specific structural pattern).
+  // Recent formats feed back into future discovery calls for content diversity.
+  format: { type: String, default: '' },
+  formatLabel: { type: String, default: '' },
+  // Which Product Pool items (if any) were inserted — empty unless Affiliate Mode
+  // was on AND the chosen format was affiliate-suitable AND matching pool products
+  // existed. Click tracking for these lives on the existing AffiliateLink records.
+  affiliateProductsUsed: [{ name: String, url: String }],
 
   // Overall job lifecycle status.
   status: {
