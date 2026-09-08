@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affiliate Publisher — World Mic Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/ai-floating.css" />
+</head>
+<body>
+<div class="admin-wrapper">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:10px"><button class="mobile-menu-btn" onclick="openSidebar()" aria-label="Open menu">☰</button><div class="topbar-title">Affiliate Publisher</div></div>
+      <div class="topbar-actions"><div class="admin-avatar" id="adminAvatar">A</div></div>
+    </div>
+    <div class="admin-content">
+
+      <!-- Analytics dashboard -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+        <div class="stat-card"><div class="skeleton" style="height:60px;border-radius:8px"></div></div>
+      </div>
+
+      <div class="table-card" style="margin-top:16px">
+        <div class="table-header"><h2>Top Products by Clicks</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Product</th><th>Network</th><th>Clicks</th></tr></thead>
+            <tbody id="topProductsBody"><tr><td colspan="3" style="text-align:center;padding:20px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:0.85rem">
+          <label for="valuePerClick">Estimated value per click ($):</label>
+          <input type="number" id="valuePerClick" value="0" min="0" step="0.01" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:6px" onchange="updateEarningsEstimate()" />
+          <span id="earningsEstimate" style="font-weight:700"></span>
+          <span style="color:#9a9aaa">— your own assumption, not tracked revenue from any affiliate network</span>
+        </div>
+      </div>
+
+      <!-- Generate -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>Generate Affiliate Article</h2></div>
+        <div style="padding:20px">
+          <div class="form-group">
+            <label class="form-label">Mode</label>
+            <select class="form-select" id="mode" onchange="updateModeUI()">
+              <option value="single">Single Product — one link, full review</option>
+              <option value="comparison">Comparison — exactly 2 links, head-to-head</option>
+              <option value="list">Top List / Roundup — 2+ links, one roundup article</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" id="urlsLabel">Product Link(s) — one per line</label>
+            <textarea class="form-input" id="urls" rows="4" placeholder="https://example.com/product-1&#10;https://example.com/product-2"></textarea>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <input class="form-input" id="category" placeholder="e.g. Technology" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Word Count</label>
+              <select class="form-select" id="wordCount">
+                <option value="short">Short (600–800)</option>
+                <option value="medium" selected>Medium (1000–1300)</option>
+                <option value="long">Long (1500–2000)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Custom Title (optional — leave blank to auto-generate)</label>
+            <input class="form-input" id="customTitle" placeholder="e.g. Best Power Banks for Nigerian Travelers in 2026" />
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;margin-bottom:16px">
+            <input type="checkbox" id="confirmImageRights" style="width:auto" />
+            I confirm I have the rights to use these products' images (needed to auto-download &amp; store them — otherwise you'll be notified instead and can add images manually)
+          </label>
+
+          <button class="btn btn-primary" id="generateBtn" onclick="generate()">Generate</button>
+          <span id="generateMsg" style="margin-left:12px;font-size:0.85rem"></span>
+        </div>
+      </div>
+
+      <!-- Job history -->
+      <div class="table-card" style="margin-top:24px">
+        <div class="table-header"><h2>Job History</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mode</th><th>Product(s)</th><th>Status</th><th>Images</th><th>Post</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="jobsBody"><tr><td colspan="7" style="text-align:center;padding:30px;color:#9a9aaa">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+<script src="/js/ai-chat.js"></script>
+<script>
+  let lastTotalClicks = 0;
+
+  function updateModeUI() {
+    const mode = document.getElementById('mode').value;
+    const label = document.getElementById('urlsLabel');
+    if (mode === 'single') label.textContent = 'Product Link — exactly one URL';
+    else if (mode === 'comparison') label.textContent = 'Product Links — exactly 2 URLs, one per line';
+    else label.textContent = 'Product Links — 2 or more URLs, one per line';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function badgeFor(status) {
+    const map = { draft: 'badge-draft', completed: 'badge-published', failed: 'badge-rejected', running: 'badge-pending' };
+    return `<span class="badge ${map[status] || 'badge-draft'}">${status}</span>`;
+  }
+
+  async function loadAnalytics() {
+    try {
+      const a = await adminFetch('/affiliate/analytics');
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-label">Drafts</div><div class="stat-value">${a.drafts}</div></div>
+        <div class="stat-card"><div class="stat-label">Published</div><div class="stat-value">${a.published}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Clicks</div><div class="stat-value">${a.totalClicks}</div></div>
+        <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">${a.totalImpressions}</div></div>
+        <div class="stat-card"><div class="stat-label">CTR</div><div class="stat-value">${a.ctr}%</div></div>`;
+      document.getElementById('topProductsBody').innerHTML = a.topProducts.length
+        ? a.topProducts.map(p => `<tr><td>${escapeHtml(p.label)}</td><td>${p.network}</td><td>${p.clicks}</td></tr>`).join('')
+        : `<tr><td colspan="3" style="text-align:center;padding:20px;color:#9a9aaa">No clicks yet</td></tr>`;
+      lastTotalClicks = a.totalClicks;
+      updateEarningsEstimate();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function updateEarningsEstimate() {
+    const value = Number(document.getElementById('valuePerClick').value) || 0;
+    document.getElementById('earningsEstimate').textContent = `Estimated earnings: $${(lastTotalClicks * value).toFixed(2)}`;
+  }
+
+  async function generate() {
+    const mode = document.getElementById('mode').value;
+    const urls = document.getElementById('urls').value.split('\n').map(u => u.trim()).filter(Boolean);
+    const btn = document.getElementById('generateBtn');
+    const msg = document.getElementById('generateMsg');
+    btn.disabled = true;
+    msg.textContent = 'Generating — fetching product info and writing the article…';
+    msg.style.color = '';
+    try {
+      await adminFetch('/affiliate/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          mode, urls,
+          category: document.getElementById('category').value.trim() || 'General',
+          wordCount: document.getElementById('wordCount').value,
+          customTitle: document.getElementById('customTitle').value.trim(),
+          adminConfirmedImageRights: document.getElementById('confirmImageRights').checked,
+        }),
+      });
+      msg.textContent = 'Generated — saved as draft below.';
+      msg.style.color = '#16a34a';
+      document.getElementById('urls').value = '';
+      document.getElementById('customTitle').value = '';
+      loadJobs();
+      loadAnalytics();
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.style.color = '#c0392b';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function regenerateJob(id) {
+    if (!confirm('Regenerate this article? This re-fetches the product page(s) and rewrites the content — click history is preserved.')) return;
+    try {
+      await adminFetch(`/affiliate/jobs/${id}/regenerate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          category: document.getElementById('category').value.trim() || undefined,
+          wordCount: document.getElementById('wordCount').value,
+          adminConfirmedImageRights: document.getElementById('confirmImageRights').checked,
+        }),
+      });
+      showToast('Regenerated', 'success');
+      loadJobs();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function completeJob(id) {
+    try { await adminFetch(`/affiliate/jobs/${id}/complete`, { method: 'POST' }); loadJobs(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function deleteJob(id) {
+    if (!confirm('Delete this job? The underlying post will NOT be deleted, only the job record and its click tracking.')) return;
+    try { await adminFetch(`/affiliate/jobs/${id}`, { method: 'DELETE' }); loadJobs(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function loadJobs() {
+    try {
+      const jobs = await adminFetch('/affiliate/jobs');
+      document.getElementById('jobsBody').innerHTML = jobs.length ? jobs.map(j => {
+        const productNames = (j.products || []).map(p => escapeHtml(p.name)).join(', ') || '—';
+        const imageNotices = (j.products || []).filter(p => p.imageNotice).map(p => `<div style="font-size:0.7rem;color:#9a9aaa;margin-top:2px">${escapeHtml(p.imageNotice)}</div>`).join('');
+        return `<tr>
+          <td>${j.mode}</td>
+          <td style="max-width:220px">${productNames}${imageNotices}</td>
+          <td>${badgeFor(j.status)}${j.error ? `<div style="font-size:0.7rem;color:#c0392b;margin-top:4px;max-width:200px">${escapeHtml(j.error)}</div>` : ''}</td>
+          <td>${(j.products || []).map(p => p.imageStatus).join(', ') || '—'}</td>
+          <td>${j.postId ? `<a href="/post/${j.postId.slug}" target="_blank">${j.postId.status}</a>` : '—'}</td>
+          <td style="font-size:0.78rem;white-space:nowrap">${new Date(j.createdAt).toLocaleString()}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
+            ${j.postId ? `<a class="btn btn-sm btn-secondary" href="/admin-posts.html?edit=${j.postId._id}">Edit</a>` : ''}
+            <button class="btn btn-sm btn-secondary" onclick="regenerateJob('${j._id}')">Regenerate</button>
+            ${j.status !== 'completed' ? `<button class="btn btn-sm btn-primary" onclick="completeJob('${j._id}')">Mark Completed</button>` : ''}
+            <button class="btn btn-sm btn-secondary" onclick="deleteJob('${j._id}')">Delete</button>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="7" style="text-align:center;padding:30px;color:#9a9aaa">No affiliate articles yet — generate one above.</td></tr>`;
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    renderAdminLayout('/admin-affiliate.html');
+    updateModeUI();
+    await loadAnalytics();
+    await loadJobs();
+  });
+</script>
+<script src="/js/pwa.js"></script>
+<div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199" onclick="closeSidebar()"></div>
+<script>
+function openSidebar(){document.querySelector(".admin-sidebar").classList.add("open");document.getElementById("sidebarOverlay").style.display="block";}
+function closeSidebar(){document.querySelector(".admin-sidebar").classList.remove("open");document.getElementById("sidebarOverlay").style.display="none";}
+</script>
+</body>
+</html>

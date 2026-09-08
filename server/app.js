@@ -341,6 +341,7 @@ app.use('/api',         require('./routes/data'));
 app.use('/api/ai',      require('./routes/ai'));
 app.use('/api/upload',  require('./routes/upload'));
 app.use('/api/auto-publisher', require('./routes/autoPublisher'));
+app.use('/api/affiliate', require('./routes/affiliate'));
 
 // Auto Publisher scheduler — isolated background system, off by default (AutoPublisherConfig
 // defaults to enabled:false). Starting it here just begins polling every 60s for a due,
@@ -389,6 +390,22 @@ app.get('/ads.txt', async (req, res) => {
 // is alive and responding. Used by the self-ping keep-alive below, and safe for any
 // external uptime monitor (UptimeRobot, etc.) to hit as well.
 app.get('/api/health', (req, res) => res.status(200).send('ok'));
+
+// Public affiliate click redirect — every affiliate link inserted into a generated
+// article points here instead of the raw destination, since that's the only way to
+// actually count clicks (a plain outbound link can't be). Increments the counter
+// then 302s straight through; if the link ID is somehow invalid, redirects home
+// rather than showing an error page to a visitor who just clicked a link in an article.
+app.get('/go/:id', async (req, res) => {
+  try {
+    const AffiliateLink = require('./models/AffiliateLink');
+    const link = await AffiliateLink.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } });
+    if (!link) return res.redirect('/');
+    res.redirect(302, link.url);
+  } catch {
+    res.redirect('/');
+  }
+});
 
 // robots.txt — tells crawlers what to index and where the sitemap is
 app.get('/robots.txt', (req, res) => {
