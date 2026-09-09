@@ -309,7 +309,17 @@ const POST_SELECT = 'title excerpt seoTitle seoDescription featuredImage status 
 app.get('/post/:slug', async (req, res, next) => {
   try {
     const post = await Post.findOne({ slug: req.params.slug }).select(POST_SELECT).catch(() => null);
-    await renderPostPage(req, res, post);
+    if (post) return renderPostPage(req, res, post);
+
+    // Not found by current slug — check if this was an OLD slug (e.g. from the
+    // slug-shortening migration in server/scripts/shortenSlugs.js) before falling
+    // through to a real 404. Redirecting instead of breaking the link matters even
+    // for posts that were never indexed, since they may already be shared somewhere
+    // (social, a bookmark) outside anything this server can see.
+    const renamed = await Post.findOne({ previousSlugs: req.params.slug }).select('slug').catch(() => null);
+    if (renamed) return res.redirect(301, `/post/${renamed.slug}`);
+
+    await renderPostPage(req, res, null);
   } catch (err) {
     next();
   }

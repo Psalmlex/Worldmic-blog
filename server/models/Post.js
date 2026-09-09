@@ -1,8 +1,14 @@
 const mongoose = require('mongoose');
+const { slugWords } = require('../utils/slugify');
 
 const postSchema = new mongoose.Schema({
   title: { type: String, required: true },
   slug: { type: String, unique: true },
+  // Old slug(s) this post has answered to — populated by the one-time slug-shortening
+  // migration (server/scripts/shortenSlugs.js). Lets an already-shared or already-
+  // indexed old URL keep working via a 301 redirect (see GET /post/:slug in app.js)
+  // instead of silently breaking when a slug changes.
+  previousSlugs: { type: [String], default: [] },
   content: { type: String, required: true },
   excerpt: { type: String },
   featuredImage: { type: String, default: '' },
@@ -30,10 +36,7 @@ postSchema.pre('save', function(next) {
     // engines, and can get truncated oddly in shared links and search results.
     // Hyphen-separated words are still correct and Google-recommended — only the
     // LENGTH was ever the real problem. Same cleanup as before, just bounded.
-    const MAX_SLUG_WORDS = 8;
-    const fullSlug = this.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const shortSlug = fullSlug.split('-').filter(Boolean).slice(0, MAX_SLUG_WORDS).join('-');
-    this.slug = shortSlug + '-' + Date.now();
+    this.slug = slugWords(this.title) + '-' + Date.now();
   }
   if (!this.excerpt && this.content) {
     this.excerpt = this.content.replace(/<[^>]*>/g, '').substring(0, 200) + '...';
