@@ -99,6 +99,7 @@ FORMAT SELECTION: pick whichever format genuinely fits this specific topic and c
 - Breaking developments in any category → industryNews
 - A topic with a real, defensible stance → opinionPiece
 - A pattern building over time → trendAnalysis
+- Nothing more specific genuinely fits → explainer (a clear, direct explainer — a reasonable, always-safe choice, not something to avoid)
 - Only pick tutorial when the piece is genuinely a sequential how-to; only pick faq/qAndA when a real Q&A structure is genuinely the best fit — these are NOT safe defaults for every topic.
 ${recentFormats.length ? `\nRECENTLY USED FORMATS (most recent first): ${recentFormats.join(', ')}. Prefer a DIFFERENT format than these if one genuinely fits this topic well too — avoid repeating the same format back-to-back purely by default. Only repeat one of these if it's clearly the best fit and nothing else genuinely works as well.` : ''}
 
@@ -116,17 +117,25 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
 [NEEDS_CURRENT_INFO]true or false — true if this topic depends on recent/current facts that require a live web search to write accurately, false if it's evergreen and safe to write from general knowledge[/NEEDS_CURRENT_INFO]
 [SENSITIVE]true or false — true if this topic touches health, finance, politics, breaking news, or legal advice and needs stricter validation before publishing[/SENSITIVE]`;
 
-  const raw = await ai.callGroq(system, `Category: ${category}. Today is ${todayStr}. Pick a format, then discover one genuinely current topic titled to match it.`, 500);
-  const parsed = parseTagged(raw, ['TOPIC', 'ANGLE', 'NEEDS_CURRENT_INFO', 'SENSITIVE', 'FORMAT']);
-
-  if (!parsed.TOPIC) throw new Error('Topic discovery failed: the AI did not return a usable topic.');
+  // Retry once before giving up entirely — an occasional malformed response (missing
+  // the [TOPIC] tag) shouldn't fail the whole job when asking again usually works.
+  // This is a longer, more instruction-heavy prompt than before (format menu + title
+  // conventions), so a little resilience against the model not following the exact
+  // tagged format on a given attempt is worth having.
+  let raw = await ai.callGroq(system, `Category: ${category}. Today is ${todayStr}. Pick a format, then discover one genuinely current topic titled to match it.`, 600);
+  let parsed = parseTagged(raw, ['TOPIC', 'ANGLE', 'NEEDS_CURRENT_INFO', 'SENSITIVE', 'FORMAT']);
+  if (!parsed.TOPIC) {
+    raw = await ai.callGroq(system, `Category: ${category}. Today is ${todayStr}. Pick a format, then discover one genuinely current topic titled to match it. Respond using ONLY the exact tagged format shown — no other text.`, 600);
+    parsed = parseTagged(raw, ['TOPIC', 'ANGLE', 'NEEDS_CURRENT_INFO', 'SENSITIVE', 'FORMAT']);
+  }
+  if (!parsed.TOPIC) throw new Error('Topic discovery failed: the AI did not return a usable topic after a retry.');
 
   // Normalize + validate: fall back to a safe, always-available default if the model
   // picked something invalid, or picked an affiliate-suitable format while affiliate
   // mode is off (defense in depth beyond just excluding it from the menu above).
   let formatName = FORMAT_LOOKUP.get(normalizeKey(parsed.FORMAT));
   if (!formatName || (!affiliateModeEnabled && strategy.isAffiliateSuitable(formatName))) {
-    formatName = 'article';
+    formatName = 'explainer';
   }
   const format = strategy.getFormat(formatName);
 

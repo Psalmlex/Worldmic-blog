@@ -18,6 +18,18 @@
 // without needing an invented person behind it.
 
 const FORMAT_ARCHETYPES = {
+  // Safe, always-valid fallback used when the AI's format pick can't be matched to
+  // anything real (see topicDiscoveryService.js) — this is what the OLD contentType
+  // system called plain 'article' before the Content Strategy Engine existed. Kept
+  // as a genuine, always-selectable archetype rather than a magic string that isn't
+  // actually in this map, since that mismatch is exactly what caused a crash
+  // ("Cannot read properties of null (reading 'label')") in production.
+  explainer: {
+    contentType: 'article',
+    label: 'General Explainer',
+    styleInstruction: 'Write this as a clear, well-organized explainer — no need to force a specific structural gimmick like a guide, list, or comparison; just cover the topic thoroughly, accurately, and engagingly.',
+    titleConvention: 'A clear, direct, descriptive title — not forced into a "how to" or list shape unless the topic genuinely calls for it.',
+  },
   ultimateGuide: {
     contentType: 'article',
     label: 'Ultimate Guide',
