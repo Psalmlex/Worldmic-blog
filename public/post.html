@@ -57,9 +57,17 @@
     let currentPostExcerpt = '';
 
     async function loadPost() {
-      if (!postId) { location.href = '/'; return; }
       const container = document.getElementById('postContent');
-      const alreadyRendered = container.children.length > 0; // server-rendered content already present
+      const alreadyRendered = container.children.length > 0; // server-rendered content already present — success OR a real 404 page
+      if (!postId) {
+        // No post ID AND nothing the server already rendered for us to show — genuinely
+        // nothing to do here, so bail to home. But if the server DID already render
+        // something (e.g. its own real "Post Not Found" page), that's correct and
+        // deliberate — overriding it with a silent redirect was the actual bug here.
+        if (alreadyRendered) return;
+        location.href = '/';
+        return;
+      }
       if (!alreadyRendered) container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
       try {
         const post = await apiFetch(`/posts/${postId}`);

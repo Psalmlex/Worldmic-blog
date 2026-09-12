@@ -88,6 +88,16 @@ async function renderPostPage(req, res, post) {
     statusCode = 404;
     title = 'Post Not Found — World Mic';
     description = 'The post you\u2019re looking for doesn\u2019t exist or has been removed.';
+    // Real, visible content for the 404 itself — previously this was left empty,
+    // which combined with a client-side script that redirected home whenever no
+    // post loaded, meant a genuine 404 silently bounced visitors to the homepage
+    // instead of ever showing them (or Googlebot) an actual "not found" page.
+    postContentHtml = `
+      <div class="post-content-area" style="text-align:center;padding:60px 20px">
+        <h1 class="post-title">Post Not Found</h1>
+        <p>This post doesn\u2019t exist, may have been moved, or was removed.</p>
+        <a href="/" class="btn btn-primary" style="margin-top:16px;display:inline-block">Back to Homepage</a>
+      </div>`;
   }
 
   html = html
