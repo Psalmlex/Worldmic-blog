@@ -156,10 +156,17 @@ function parseTaggedResponse(raw, keys) {
   return result;
 }
 
-// Safety net: guarantees a call-to-action is present even if the model forgot or got cut off
-function ensureCTA(content, topic) {
+// Safety net: guarantees a call-to-action is present even if the model forgot or got cut off.
+// Deliberately does NOT interpolate the topic into the sentence — topics/titles can be long,
+// punctuation-heavy strings (a specific angle, a comparison, a run-on-ish headline), and
+// grammatically embedding an unpredictable string mid-sentence produced visibly broken,
+// nonsensical output in production (e.g. "...today around 5 Gadgets That Will Change Your
+// Work-from-Home Experience in 2026,-As remote work continues to evolve..."). A clean,
+// topic-agnostic line is always grammatically correct, which matters more than the small
+// personalization the interpolation was attempting.
+function ensureCTA(content) {
   if (/class=["']cta-final["']/i.test(content)) return content;
-  const fallback = `<p class="cta-final"><strong>Ready to put this into practice? Start with just one step from this article today${topic ? ` around ${topic}` : ''} — small, consistent action beats waiting for the perfect plan.</strong></p>`;
+  const fallback = `<p class="cta-final"><strong>Ready to put this into practice? Start with just one small, consistent step today — that beats waiting for the perfect plan.</strong></p>`;
   return content.trim() + '\n' + fallback;
 }
 
@@ -483,7 +490,7 @@ Respond using EXACTLY this tagged format, no other text, no JSON, no markdown fe
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
 [SEOTITLE]An SEO-optimized title, under 60 characters, including the primary keyword[/SEOTITLE]
 [SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
-[TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
+[TAGS]5 tags that describe what THIS SPECIFIC article is actually about — every tag must be directly grounded in its actual title/content, never a generic or unrelated category[/TAGS]
 [CONTENT]
 The final, polished HTML article body.
 [/CONTENT]`;
@@ -491,7 +498,7 @@ The final, polished HTML article body.
   const parsed = parseTaggedResponse(result, ['TITLE', 'EXCERPT', 'SEOTITLE', 'SEODESCRIPTION', 'TAGS', 'CONTENT']);
 
   if (parsed.TITLE && parsed.CONTENT) {
-    const contentWithCTA = ensureCTA(parsed.CONTENT, effectiveTopic);
+    const contentWithCTA = ensureCTA(parsed.CONTENT);
     return {
       title: parsed.TITLE,
       content: contentWithCTA,
@@ -502,7 +509,7 @@ The final, polished HTML article body.
     };
   }
   // Fallback if the final stage ignored the format — still return the rewritten draft rather than failing
-  return { title: topic, content: ensureCTA(rewritten || draft, effectiveTopic), excerpt: (rewritten || draft).replace(/<[^>]+>/g, '').substring(0, 200), tags: [], seoTitle: topic, seoDescription: '' };
+  return { title: topic, content: ensureCTA(rewritten || draft), excerpt: (rewritten || draft).replace(/<[^>]+>/g, '').substring(0, 200), tags: [], seoTitle: topic, seoDescription: '' };
 }
 
 // ─── Re-edit existing post ────────────────────────────────────────────────────
@@ -528,7 +535,7 @@ Respond using EXACTLY this tagged format, with no other text before, between, or
 [EXCERPT]A plain-text summary, about 150-200 characters, no HTML[/EXCERPT]
 [SEOTITLE]An SEO-optimized title, under 60 characters, including the primary keyword[/SEOTITLE]
 [SEODESCRIPTION]An SEO meta description, under 160 characters, including the primary keyword[/SEODESCRIPTION]
-[TAGS]tag one, tag two, tag three, tag four, tag five[/TAGS]
+[TAGS]5 tags that describe what THIS SPECIFIC article is actually about — every tag must be directly grounded in its actual title/content, never a generic or unrelated category[/TAGS]
 [CONTENT]
 Full improved HTML article body here, mostly flowing prose with a real voice, following the rules above.
 [/CONTENT]`;
@@ -539,7 +546,7 @@ Full improved HTML article body here, mostly flowing prose with a real voice, fo
   if (parsed.TITLE && parsed.CONTENT) {
     return {
       title: parsed.TITLE,
-      content: ensureCTA(parsed.CONTENT, existingTitle),
+      content: ensureCTA(parsed.CONTENT),
       excerpt: parsed.EXCERPT || parsed.CONTENT.replace(/<[^>]+>/g, '').substring(0, 200),
       seoTitle: parsed.SEOTITLE || parsed.TITLE,
       seoDescription: parsed.SEODESCRIPTION || '',
