@@ -7,6 +7,26 @@ const connectDB = require('../config/db');
 const { Settings, StaffUser } = require('./models/Models');
 const Post = require('./models/Post');
 
+// Global safety net: by default, Node.js kills the ENTIRE process on any unhandled
+// promise rejection or uncaught exception — meaning a single unguarded error
+// ANYWHERE in this codebase (a route, a background job, a third-party API call)
+// would take the whole site offline until Render notices and restarts it. If
+// Googlebot's request happens to land in that window, that's a real, hard-to-
+// reproduce 5xx with no obvious single cause — a plausible explanation for exactly
+// that kind of one-off error logged in Search Console. Logging and continuing
+// (rather than crashing) means one bad request/job fails on its own without taking
+// every other visitor down with it. This is a deliberate tradeoff: for a single-
+// process app with no complex shared state that a partial failure could corrupt,
+// staying up and serving everything else is safer than a full crash-and-restart
+// cycle, even though Node's own docs generally recommend exiting after an uncaught
+// exception in cases where process state might be left inconsistent.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason?.stack || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.stack || err);
+});
+
 const app = express();
 connectDB();
 
