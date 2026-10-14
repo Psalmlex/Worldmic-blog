@@ -338,9 +338,9 @@ function formatSearchResults(results) {
 // underlying quality engine below. This is what lets World Mic serve readers at every
 // stage: informational (blog/article/news) through purchase-ready (affiliate/review/buying guide).
 const CONTENT_TYPES = {
-  blog: { label: 'Blog Post', voice: 'Personal, conversational, engaging — like a knowledgeable friend sharing what they\'ve actually learned. First person is welcome and often best. Practical, relatable, a little informal.' },
+  blog: { label: 'Blog Post', voice: 'Personal, conversational, high-energy — like a clued-up friend sharing what they\'ve actually learned. First person is welcome and often best. Practical, relatable, informal, with personality and humor.' },
   article: { label: 'Article', voice: 'Analytical, authoritative, well-researched. Builds credibility and trust through real depth on the subject, not just coverage of it.' },
-  affiliate: { label: 'Affiliate / Commercial Content', voice: 'Product-focused, comparison-driven, conversion-oriented — written to genuinely help a reader choose between real options. Honest pros and cons for each option, pricing context, who each one is actually best for, and a clear final recommendation. This is commercial content, but it should read as more useful and honest than a typical listicle, not less.' },
+  affiliate: { label: 'Affiliate / Commercial Content', voice: 'Product-focused, comparison-driven, conversion-oriented, but fun and snappy to read — written to genuinely help a reader choose between real options. Honest pros and cons for each option, pricing context, who each one is actually best for, and a clear final recommendation. This is commercial content, but it should read as more useful and honest than a typical listicle, not less.' },
   news: { label: 'News', voice: 'Factual, balanced, timely. Lead with the single most important fact. Report what happened and why it matters — this is not the place for a personal narrative voice or editorializing.' },
   review: { label: 'Review', voice: 'Hands-on and experience-focused. Specific strengths and weaknesses, not a generic feature list. A clear verdict, and clarity on who it is (and isn\'t) right for.' },
   buyingGuide: { label: 'Buying Guide', voice: 'Practical and recommendation-focused. Explain the real decision factors a buyer should weigh before purchasing, then recommend specific options for different needs and budgets.' },
@@ -350,6 +350,28 @@ const CONTENT_TYPES = {
 // ─── The Human Writing Engine — universal quality principles for every content type ──
 // The goal is not to evade AI-detection; it's to produce writing that's genuinely useful,
 // original, and well-edited. Quality writing naturally reads as human — that's the target.
+// ─── Next-generation voice layer — applied on top of every content type ──────────
+// The audience is young (Gen Z / young millennial): mobile-first, skims, hates being
+// lectured or sold to, loves honesty, humor and specifics. This changes TONE and
+// PACING only — never the accuracy rules (no invented facts, no fake testimonials).
+const NEXT_GEN_VOICE = `NEXT-GENERATION VOICE (the reader is 16-30, on their phone, skimming, and allergic to corporate-sounding or preachy writing):
+- Open with a hook that earns the scroll: a relatable moment, a bold take, a funny truth, or a surprising specific. First two lines must make them want line three.
+- Talk TO the reader ("you"), like a smart, funny friend who happens to know the topic. Conversational, confident, never stiff, never lecturing.
+- Short paragraphs (1-3 sentences). Punchy sentences mixed with the occasional longer one. Scannable subheadings that have personality, not generic labels.
+- Humor and wit are welcome: wry asides, playful comparisons, light internet-native slang used SPARINGLY and naturally (never forced, never cringe, never dated, never offensive). At most one or two emojis in the whole piece, only where they genuinely fit.
+- Be real: say what's actually good, what's overhyped, what's not worth the money. Honesty is what this audience trusts; fake hype makes them leave.
+- Relatable framing: students, first jobs, side hustles, small budgets, group chats, creators, phones, content. Use concrete everyday situations, not abstract corporate ones.
+- For anything about health, money/investing, law, safety, tragedy or politics: keep it friendly and clear but dial the jokes and slang way down and keep the facts precise.
+- NEVER trade accuracy for vibes: no invented facts, stats, quotes, reviews, testimonials or "I tried it" experiences that did not happen.`;
+const NEXT_GEN_VOICE_LIGHT = `VOICE: keep the facts straight and the sentences clean, but write for a young, mobile-first reader: a sharp opening line, short paragraphs, plain words, zero stiff or corporate phrasing, and a touch of personality where the topic allows. No slang for its own sake.`;
+const COMMERCIAL_VOICE_ADDON = `COMMERCIAL CONTENT (ads/affiliate/reviews/buying guides) — make it a pleasure to read, not a sales pitch: lead with the reader's real problem or wish, make each recommendation feel like a friend's honest tip ("get this if..., skip it if..."), call out who it's NOT for, mention real downsides, and make the value for money obvious. Use punchy subheadings, a quick-pick summary near the top where it fits, and a confident closing nudge that sounds like a person, not an ad. Never use fake urgency, fake scarcity, fake reviews or unverifiable claims ("#1 in the world", "guaranteed results").`;
+
+function voiceBlock(contentType) {
+  if (contentType === 'news') return NEXT_GEN_VOICE_LIGHT;
+  const commercial = ['affiliate', 'review', 'buyingGuide'].includes(contentType);
+  return NEXT_GEN_VOICE + (commercial ? '\n' + COMMERCIAL_VOICE_ADDON : '');
+}
+
 const HUMAN_ENGINE_RULES = `CLICHÉS TO AVOID — the exact tells of low-effort AI writing. Do not use:
 "In today's world," "In today's fast-paced world," "It is important to note that," "As we have seen," "transformative," "navigate" (as in "navigate this landscape"), "delve into," "journey" (as a metaphor for a process), "unlock," "furthermore," "moreover," "additionally," "in conclusion," "overall," "at the end of the day."
 
@@ -433,6 +455,7 @@ async function generatePost(topic, tone = '', category = 'General', options = {}
   const outlineSystem = `You are a senior editorial strategist for World Mic, planning a piece of content before it's written.
 CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 ${toneInstruction}
+${voiceBlock(contentType)}
 Plan sections that fit this content type. For Blog/Article/News/Opinion, name a SPECIFIC angle per section (a mechanism, a tradeoff, a counter-intuitive point) — not a generic label. For Affiliate/Review/Buying Guide, structure around genuine decision factors, honest comparison points, and a clear verdict/recommendation section.
 The piece's title is already displayed separately as a large heading above the content — do NOT plan a first section called "Introduction" or one whose heading just restates the title/topic. Section 1 should open directly with substance (a specific claim, scenario, or stat), and every section heading must add new information the title didn't already say.
 ${hasResearchMaterial ? `Research material is grounding for FACTS, not a template to summarize. If this piece just restates what the research already says in the same order, it adds nothing a reader couldn't get by reading one of those sources directly — that's the single biggest reason content fails to rank or matter. Instead: connect facts the sources don't connect themselves, work out a concrete practical implication for the reader (what should they actually do or expect because of this), or take a specific stance the research supports but doesn't state outright. The THESIS below must be a genuine synthesis or angle — not a restatement of "what happened."` : ''}${productBlock}
@@ -456,6 +479,7 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
   const draftSystem = `You are a senior writer for World Mic writing the full first draft from an approved outline.
 CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
 ${toneInstruction}
+${voiceBlock(contentType)}
 Write each section in full, delivering on the specific angle/purpose the outline assigned it — don't flatten it back into generic exposition.
 ${HUMAN_ENGINE_RULES}
 ${contentType === 'affiliate' || contentType === 'review' || contentType === 'buyingGuide'
@@ -469,6 +493,8 @@ Respond with ONLY the HTML article body (using <h2>/<h3>/<p>, <ul>/<li>, and a <
   // ── Stage 3: Heavy rewrite — original insight, examples, distinctive voice ──
   const rewriteSystem = `You are a senior editor doing a heavy rewrite pass on a draft — not proofreading, substantially rewriting weak parts.
 CONTENT TYPE: ${typeConfig.label} — ${typeConfig.voice}
+${toneInstruction}
+${voiceBlock(contentType)}
 For every paragraph, ask: "would a reasonably informed reader already know this?" If yes, rewrite it to go deeper — the mechanism behind why something works, the overlooked tradeoff, a sharper reframe.
 Check across the whole piece: are the same 2-3 ideas being repeated reworded in multiple sections? If so, cut the repetition and replace it with something new in each place.
 Replace any generic statement with a specific, concrete example — scan for sentences that could appear unchanged in any other piece on this topic and make them specific to this one.
@@ -479,7 +505,7 @@ Respond with ONLY the rewritten HTML article body — no tags, no preamble, no m
   const rewritten = await callAI(rewriteSystem, `Heavily rewrite this draft about "${effectiveTopic}":\n\n${draft}`, 5000);
 
   // ── Stage 4: Rhythm/repetition copy-edit + final metadata ──
-  const polishSystem = `You are a copy editor doing the final human-editing pass on a piece of ${typeConfig.label.toLowerCase()} content: remove filler, improve flow, vary wording, shorten weak sentences, improve rhythm, eliminate redundancy. Remove repeated phrases and words (especially repeated sentence openings and transition words). Do not flatten the voice back into generic phrasing.
+  const polishSystem = `You are a copy editor doing the final human-editing pass on a piece of ${typeConfig.label.toLowerCase()} content: remove filler, improve flow, vary wording, shorten weak sentences, improve rhythm, eliminate redundancy. Remove repeated phrases and words (especially repeated sentence openings and transition words). Do not flatten the voice back into generic phrasing. Keep it lively and conversational for a young, mobile-first reader: short paragraphs, punchy sentences, no stiff or corporate wording.
 If the draft contains an HTML <table>, preserve it exactly as a table — do not convert it into a paragraph or bullet list during copy-editing.
 The piece MUST end with a specific, high-impact closing line as the very last element, wrapped exactly like this: <p class="cta-final"><strong>Your specific closing line here.</strong></p> — it should reinforce the real takeaway of THIS piece, not a generic "leave a comment" or "share this" close. Add it if missing.
 Then produce metadata for it. Identify 6-10 SEO keywords relevant to this topic and make sure the title/description use the primary one naturally.
