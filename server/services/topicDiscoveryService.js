@@ -6,6 +6,7 @@
 const ai = require('./aiService'); // reuses the existing text-AI plumbing, not a new one
 const Post = require('../models/Post');
 const strategy = require('./contentStrategyEngine');
+const { fetchTrendingSocial } = require('./searchService');
 
 function parseTagged(raw, keys) {
   const result = {};
@@ -56,7 +57,7 @@ async function resolveCategoryPool(configuredCategories = []) {
 // formats (product review, comparison, best-X-for-Y, roundup) if the topic
 // genuinely calls for one. When false, those formats are never proposed at all —
 // this is what keeps affiliate format selection separate from the normal blog path.
-async function discoverTopic({ categories = [], recentTopics = [], recentFormats = [], useRealSearchQuestions = true, affiliateModeEnabled = false } = {}) {
+async function discoverTopic({ categories = [], recentTopics = [], recentFormats = [], useRealSearchQuestions = true, affiliateModeEnabled = false, searchProvider = 'auto' } = {}) {
   const pool = await resolveCategoryPool(categories);
   // Simple rotation weighted by least-recently-used category keeps coverage even
   // across all configured categories rather than always picking the first one.
@@ -75,8 +76,19 @@ async function discoverTopic({ categories = [], recentTopics = [], recentFormats
   // means the prompt below has nothing extra to work with, and the AI proceeds
   // exactly as it did before this feature existed.
   let realQuestions = [];
-  if (useRealSearchQuestions) {
+  if (useRealSearchQuestions && !/social/i.test(category)) {
     realQuestions = await ai.getRelatedQuestions(`${category} how to`);
+  }
+
+  // Social News: topics must come from REAL headlines published in the last day, never
+  // from the model's memory (which cannot know what was posted today).
+  let socialBlock = '';
+  if (/social/i.test(category)) {
+    let headlines = [];
+    try { headlines = await fetchTrendingSocial(searchProvider); } catch {}
+    if (headlines.length) {
+      socialBlock = `\nSOCIAL NEWS MODE. Below are REAL headlines/snippets from the last day or so about what is happening on social media (popular accounts, celebrities, brands, creators, viral moments). Choose ONE of these real stories as the topic — about a specific account/person/brand's recent post or a specific viral moment. Do NOT invent a story that is not supported by this list. Prefer a lighthearted, funny, harmless story; avoid tragedies, deaths, crimes, abuse, and anything that would be cruel to joke about. Phrase the TOPIC as a specific, punchy description naming who and which platform.\nREAL RECENT HEADLINES:\n${headlines.map((h, i) => `${i + 1}. ${h.title}${h.snippet ? ' — ' + h.snippet.slice(0, 160) : ''}`).join('\n')}\n`;
+    }
   }
 
   const availableFormats = strategy.getFormatNames().filter(f => affiliateModeEnabled || !strategy.isAffiliateSuitable(f));
@@ -88,7 +100,7 @@ TODAY'S ACTUAL DATE IS ${todayStr}. This is the true, current, real-world date �
 Strongly prefer genuinely current developments — something happening in or near the present moment — over evergreen topics. Only propose an evergreen topic if nothing recent and worthwhile comes to mind for this category. Do not propose anything generic, vague, already well-covered, or anchored to a year that has already passed.
 A broad, generic version of a topic ("AI in healthcare", "the future of electric cars") is something hundreds of other sites already cover identically — publishing that adds nothing distinct. Narrow it to a specific angle, a specific group affected, a specific mechanism, or a specific comparison instead, so the piece could only have come from actually thinking about this topic, not from picking the obvious headline.
 ${recentTopics.length ? `AVOID overlapping with these recently-covered topics: ${recentTopics.join('; ')}` : ''}
-${realQuestions.length ? `\nREAL QUESTIONS GOOGLE USERS ARE ACTUALLY SEARCHING FOR IN THIS CATEGORY RIGHT NOW:\n${realQuestions.map(q => `- ${q}`).join('\n')}\nThese reflect genuine search demand and are a good source for WHAT SUBJECT to cover — but they are not necessarily how the final TITLE should be worded. Use one as inspiration for the underlying subject when a good one fits, then phrase the actual title to match whichever FORMAT you choose below, not necessarily this question's exact wording (see title conventions per format below — "how to"/"what is" phrasing is only correct for a few specific formats, not the default).` : ''}
+${socialBlock}${realQuestions.length ? `\nREAL QUESTIONS GOOGLE USERS ARE ACTUALLY SEARCHING FOR IN THIS CATEGORY RIGHT NOW:\n${realQuestions.map(q => `- ${q}`).join('\n')}\nThese reflect genuine search demand and are a good source for WHAT SUBJECT to cover — but they are not necessarily how the final TITLE should be worded. Use one as inspiration for the underlying subject when a good one fits, then phrase the actual title to match whichever FORMAT you choose below, not necessarily this question's exact wording (see title conventions per format below — "how to"/"what is" phrasing is only correct for a few specific formats, not the default).` : ''}
 
 FORMAT SELECTION: pick whichever format genuinely fits this specific topic and category's search intent best — do not default to the same format every time, and do not default to a "how to" / "what is" framing just because that's what a search-demand question happened to use. As general guidance for what typically fits which kind of category (not a rigid rule — the specific topic always wins over the general pattern):
 - Tech/gadgets/software → often productReview, comparison, or bestXForY

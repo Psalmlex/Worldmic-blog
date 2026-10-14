@@ -115,7 +115,7 @@ function recencyScore(dateStr) {
 // ── Research a topic across multiple queries, dedupe, and open top pages for
 // deeper extraction (reusing aiService.fetchUrlContent so there's only one
 // "fetch + strip HTML" implementation in the codebase). ──────────────────────
-async function researchTopic(topic, { minSources = 3, providerPreference = 'auto' } = {}) {
+async function researchTopic(topic, { minSources = 3, providerPreference = 'auto', social = false } = {}) {
   const chain = buildProviderChain(providerPreference);
   let activeIndex = 0; // once a provider works for a query, keep using it for the rest
   let providerUsed = chain[0].name;
@@ -125,7 +125,14 @@ async function researchTopic(topic, { minSources = 3, providerPreference = 'auto
   // by general relevance, which is very often an old, well-established page rather
   // than something current. 'freshness' maps to Google/Serper's tbs recency filter;
   // the browser-fallback provider ignores unknown options harmlessly.
-  const queries = [
+  const queries = social ? [
+    // Social News: the story is only worth telling while it is fresh, so go past-day
+    // first, then past-week, and look specifically for outlets reporting on the post.
+    { q: `${topic}`, freshness: 'qdr:d' },
+    { q: `${topic} post reaction`, freshness: 'qdr:d' },
+    { q: `${topic} viral`, freshness: 'qdr:w' },
+    { q: `${topic} social media`, freshness: 'qdr:w' },
+  ] : [
     { q: `${topic} news`, freshness: 'qdr:w' },   // past week — the freshest angle
     { q: `${topic} latest`, freshness: 'qdr:m' },  // past month — still very current
     { q: topic, freshness: 'qdr:m' },
@@ -199,4 +206,32 @@ async function researchTopic(topic, { minSources = 3, providerPreference = 'auto
   return { providerUsed, sources: opened };
 }
 
-module.exports = { researchTopic, buildProviderChain };
+// Live headlines about what is trending on social media RIGHT NOW. Used by topic
+// discovery for the Social News category so topics come from real, current reporting
+// rather than the model's (stale) memory. Returns [] on total failure (caller falls
+// back safely).
+async function fetchTrendingSocial(providerPreference = 'auto') {
+  const chain = buildProviderChain(providerPreference);
+  const queries = [
+    'viral post today social media',
+    'trending on TikTok Instagram X today',
+    'celebrity latest post goes viral',
+    'internet reacts to post',
+  ];
+  const seen = new Map();
+  for (const q of queries) {
+    for (let i = 0; i < chain.length; i++) {
+      try {
+        const results = await chain[i].fn(q, { freshness: 'qdr:d' });
+        for (const r of results) if (r.link && r.title && !seen.has(r.link)) seen.set(r.link, r);
+        break;
+      } catch (err) {
+        console.warn(`[autoPublisher] trending search failed ("${q}"):`, err.message);
+      }
+    }
+    if (seen.size >= 14) break;
+  }
+  return [...seen.values()].slice(0, 14).map(r => ({ title: r.title, snippet: r.snippet || '', link: r.link, date: r.date || '' }));
+}
+
+module.exports = { researchTopic, buildProviderChain, fetchTrendingSocial };

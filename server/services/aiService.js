@@ -201,7 +201,7 @@ async function fetchUrlContent(url) {
   }
 }
 
-const WORD_TARGETS = { short: '600-800', medium: '1000-1300', long: '1500-2000' };
+const WORD_TARGETS = { social: '300-450', short: '600-800', medium: '1000-1300', long: '1500-2000' };
 
 // ─── Web search (Serper.dev) — lets Mica write about actual current events ───
 // Language models only know what's in their training data; they can't know about

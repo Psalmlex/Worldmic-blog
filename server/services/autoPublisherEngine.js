@@ -85,6 +85,7 @@ async function runJob(trigger = 'scheduled') {
       recentFormats,
       useRealSearchQuestions: config.useRealSearchQuestions,
       affiliateModeEnabled: config.affiliateModeEnabled,
+      searchProvider: config.searchProvider,
     });
     job.topic = discovered.topic;
     job.category = discovered.category;
@@ -116,6 +117,7 @@ async function runJob(trigger = 'scheduled') {
       const research = await researchTopic(discovered.topic, {
         minSources: config.minResearchSources,
         providerPreference: config.searchProvider,
+        social: discovered.format === 'socialNews',
       });
       job.researchSources = research.sources.map(s => ({ title: s.title, link: s.link, snippet: s.snippet }));
       job.searchProviderUsed = research.providerUsed;
@@ -188,7 +190,7 @@ async function runJob(trigger = 'scheduled') {
     let postData;
     try {
       postData = await ai.generatePost(discovered.topic, discovered.styleInstruction, discovered.category, {
-        length: config.wordCount,
+        length: discovered.format === 'socialNews' ? 'social' : config.wordCount,
         contentType: discovered.contentType,
         researchContext,
         products: affiliateGenProducts,
