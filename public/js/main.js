@@ -205,6 +205,7 @@ async function renderFooter() {
         <h3 class="footer-heading">Quick Links</h3>
         <ul class="footer-links">
           <li><a href="/">Home</a></li>
+          <li><a href="/category.html?name=Social%20News">Social News</a></li>
           <li><a href="/category.html">Categories</a></li>
           <li><a href="/search.html">Search</a></li>
           <li><a href="/about.html">About Us</a></li>
@@ -260,6 +261,7 @@ async function renderHeader(activePage = '') {
       <a href="/" class="site-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="11" ry="5.2" style="fill:none;stroke:#fff;stroke-width:1.4;opacity:0.55"/><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M6.5 11 Q6.5 17.5 12 17.5 Q17.5 17.5 17.5 11" style="fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="12" y1="17.5" x2="12" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/><line x1="8.5" y1="21" x2="15.5" y2="21" style="stroke:#fff;stroke-width:1.8;stroke-linecap:round"/></svg></div><div class="logo-text">World<span>Mic</span></div></a>
       <nav class="main-nav" id="mainNav">
         <a href="/" class="${activePage === 'home' ? 'active' : ''}">Home</a>
+        <a href="/category.html?name=Social%20News" class="nav-social ${activePage === 'social' || /name=Social(%20|\+| )News/i.test(location.search) ? 'active' : ''}">🔥 Social News</a>
         <a href="/category.html" class="${activePage === 'categories' ? 'active' : ''}">Categories</a>
         <a href="/search.html" class="${activePage === 'search' ? 'active' : ''}">Search</a>
       </nav>
@@ -268,7 +270,7 @@ async function renderHeader(activePage = '') {
       <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu"><span></span><span></span><span></span></button>
     </div>
     <div class="mobile-menu" id="mobileMenu">
-      <a href="/">Home</a><a href="/category.html">Categories</a><a href="/search.html">Search</a>
+      <a href="/">Home</a><a href="/category.html?name=Social%20News" class="nav-social">🔥 Social News</a><a href="/category.html">Categories</a><a href="/search.html">Search</a>
     </div>`;
   document.getElementById('headerSearch')?.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   const themeBtn = document.getElementById('themeToggleBtn');

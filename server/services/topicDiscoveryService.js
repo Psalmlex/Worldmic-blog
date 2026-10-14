@@ -96,6 +96,7 @@ FORMAT SELECTION: pick whichever format genuinely fits this specific topic and c
 - Health/wellness → often ultimateGuide or mythsVsFacts (evidence-based, not casual)
 - Finance/money → often ultimateGuide, caseStudy, or checklist (concrete, practical)
 - Travel → often ultimateGuide or bestXForY
+- Category about social media / viral trends / creators / platforms → ALWAYS socialNews (a report on something actually happening on social media right now)
 - Breaking developments in any category → industryNews
 - A topic with a real, defensible stance → opinionPiece
 - A pattern building over time → trendAnalysis
@@ -134,6 +135,8 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
   // picked something invalid, or picked an affiliate-suitable format while affiliate
   // mode is off (defense in depth beyond just excluding it from the menu above).
   let formatName = FORMAT_LOOKUP.get(normalizeKey(parsed.FORMAT));
+  const isSocialCat = /social/i.test(category);
+  if (isSocialCat) formatName = 'socialNews';
   if (!formatName || (!affiliateModeEnabled && strategy.isAffiliateSuitable(formatName))) {
     formatName = 'explainer';
   }
@@ -143,8 +146,10 @@ Respond using EXACTLY this format, no other text, no JSON, no markdown fences:
     topic: parsed.TOPIC,
     category,
     angle: parsed.ANGLE || '',
-    needsCurrentInfo: /true/i.test(parsed.NEEDS_CURRENT_INFO || ''),
-    sensitive: /true/i.test(parsed.SENSITIVE || ''),
+    // Social News is always time-sensitive and about real people/brands, so it always
+    // requires fresh research and the stricter source bar (falls back to draft if thin).
+    needsCurrentInfo: isSocialCat || /true/i.test(parsed.NEEDS_CURRENT_INFO || ''),
+    sensitive: isSocialCat || /true/i.test(parsed.SENSITIVE || ''),
     format: formatName,
     formatLabel: format.label,
     contentType: format.contentType,

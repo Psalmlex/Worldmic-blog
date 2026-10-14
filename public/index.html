@@ -18,7 +18,7 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Source+Sans+3:wght@300;400;500;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
   <link rel="stylesheet" href="/css/main.css" />
   <script src="/js/analytics.js" defer></script>
 </head>
@@ -34,6 +34,17 @@
 
   <!-- FEATURED POST HERO -->
   <section class="hero-section" id="heroSection" style="display:none"></section>
+
+  <!-- SOCIAL BUZZ (hidden until Social News posts exist) -->
+  <section class="social-buzz" id="socialBuzz" style="display:none">
+    <div class="social-buzz-inner">
+      <div class="social-buzz-head">
+        <h2><span>🔥 Social Buzz</span> what's trending online</h2>
+        <a href="/category.html?name=Social%20News">See all →</a>
+      </div>
+      <div class="buzz-row" id="buzzRow"></div>
+    </div>
+  </section>
 
   <div class="main-layout">
     <!-- MAIN CONTENT -->
@@ -172,7 +183,21 @@
       loadPosts(1, currentCategory);
     }
 
+    async function loadSocialBuzz() {
+      try {
+        const data = await apiFetch('/posts?limit=8&page=1&category=' + encodeURIComponent('Social News'));
+        if (!data.posts || !data.posts.length) return;
+        document.getElementById('buzzRow').innerHTML = data.posts.map(p => `
+          <a class="buzz-card" href="/post/${p.slug}">
+            ${p.featuredImage ? `<img src="${p.featuredImage}" alt="" loading="lazy" />` : `<div class="buzz-ph">🔥</div>`}
+            <h3>${p.title}</h3><small>${formatDate(p.createdAt)}</small>
+          </a>`).join('');
+        document.getElementById('socialBuzz').style.display = '';
+      } catch {}
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      loadSocialBuzz();
       loadPosts(); loadCategories(); loadTrending();
       renderAds('topAd', 'top');
       renderAds('sidebarTopAd', 'sidebar');

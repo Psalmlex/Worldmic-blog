@@ -102,6 +102,12 @@ const FORMAT_ARCHETYPES = {
     styleInstruction: 'Write this as straight industry news reporting — lead with what happened, then why it matters, in that order.',
     titleConvention: 'e.g. "[Entity] Launches/Announces/Reports X" — states what happened directly, not a question.',
   },
+  socialNews: {
+    contentType: 'news',
+    label: 'Social News',
+    styleInstruction: 'Write this as Social News: a fast, energetic, conversational report on something that is happening on social media right now (a trend, viral moment, platform change, creator/brand story, challenge or meme). Lead with what happened and where (platform), then why people are talking about it. Use a lively, young-audience voice, but stay factual. STRICT RULES: only report what the research material actually states; NEVER invent posts, tweets, captions, quotes, usernames, view/like counts or dates; attribute claims to the outlet that reported them ("according to ..."); do not make accusations about named private individuals; if something is unverified or a rumor, say so plainly.',
+    titleConvention: 'e.g. "Why Everyone on TikTok Is Talking About X" / "X Just Went Viral on Instagram: Here\'s What Happened" — a punchy, specific headline naming the platform and the moment, not a how-to question.',
+  },
   trendAnalysis: {
     contentType: 'article',
     label: 'Trend Analysis',

@@ -268,7 +268,7 @@ app.get('/category.html', async (req, res, next) => {
       )
       .replace('<span id="pageTitle">Categories</span>', `<span id="pageTitle">${catName || 'Categories'}</span>`)
       .replace('<h2 class="section-title" id="heading">All Posts</h2>', `<h2 class="section-title" id="heading">${heading}</h2>`)
-      .replace('<div class="posts-grid" id="postsGrid"></div>', `<div class="posts-grid" id="postsGrid">${gridHtml}</div>`)
+      .replace('<div class="posts-grid" id="postsGrid"></div>', `${/^social news$/i.test(catName) ? '<div class="social-news-banner"><h2>🔥 Social News</h2><p>What is blowing up on TikTok, Instagram, X, YouTube and beyond — fresh from the timeline.</p></div>' : ''}<div class="posts-grid" id="postsGrid">${gridHtml}</div>`)
       .replace('<ul class="trending-list" id="catList"></ul>', `<ul class="trending-list" id="catList">${catListHtml}</ul>`);
 
     res.send(html);
