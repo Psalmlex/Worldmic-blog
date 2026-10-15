@@ -18,6 +18,12 @@ const postSchema = new mongoose.Schema({
   status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft' },
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },
+  reactions: {
+    fire: { type: Number, default: 0 },
+    laugh: { type: Number, default: 0 },
+    wow: { type: Number, default: 0 },
+    hundred: { type: Number, default: 0 },
+  },
   authorUsername: { type: String, default: '' },
   deletionRequested: { type: Boolean, default: false },
   deletionRequestedBy: { type: String, default: '' },

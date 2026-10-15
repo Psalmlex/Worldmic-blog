@@ -636,3 +636,16 @@ h1,h2,h3,.section-title,.post-title,.card-title,.hero-title,.logo-text,.footer-h
 .post-card-img { background: linear-gradient(135deg, var(--primary-light), var(--soft-border)); }
 .trending-item .card-category { display: table; margin-bottom: 4px; }
 .card-title a { color: var(--text-dark); }
+
+/* Post-page engagement: progress bar + reactions */
+#readProgress { position: fixed; top: 0; left: 0; height: 5px; width: 0; background: linear-gradient(90deg, var(--accent), var(--sun), var(--pop)); z-index: 2000; border-bottom-right-radius: 6px; transition: width .08s linear; }
+.react-bar { margin-top: 28px; padding: 16px 18px; background: var(--primary-light); border: 2.5px solid var(--ink); border-radius: var(--radius); box-shadow: 4px 4px 0 var(--ink); }
+[data-theme="dark"] .react-bar { border-color: var(--border); }
+.react-label { font-family: var(--font-head); font-weight: 800; color: var(--text-dark); margin-bottom: 10px; }
+.react-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.react-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; border: 2px solid var(--ink); background: var(--bg-white); color: var(--text-dark); font-weight: 800; font-family: var(--font-body); cursor: pointer; box-shadow: 2px 2px 0 var(--ink); transition: transform var(--transition); }
+.react-btn:hover { transform: translateY(-3px) rotate(-3deg); }
+.react-btn.on { background: var(--pop); color: #15121f; }
+.react-emoji { font-size: 1.25rem; }
+.react-btn.pop .react-emoji { animation: reactPop .5s ease; }
+@keyframes reactPop { 0% { transform: scale(1); } 40% { transform: scale(1.8) rotate(-12deg); } 100% { transform: scale(1); } }

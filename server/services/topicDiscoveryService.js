@@ -57,11 +57,11 @@ async function resolveCategoryPool(configuredCategories = []) {
 // formats (product review, comparison, best-X-for-Y, roundup) if the topic
 // genuinely calls for one. When false, those formats are never proposed at all —
 // this is what keeps affiliate format selection separate from the normal blog path.
-async function discoverTopic({ categories = [], recentTopics = [], recentFormats = [], useRealSearchQuestions = true, affiliateModeEnabled = false, searchProvider = 'auto' } = {}) {
+async function discoverTopic({ forceCategory = '', categories = [], recentTopics = [], recentFormats = [], useRealSearchQuestions = true, affiliateModeEnabled = false, searchProvider = 'auto' } = {}) {
   const pool = await resolveCategoryPool(categories);
   // Simple rotation weighted by least-recently-used category keeps coverage even
   // across all configured categories rather than always picking the first one.
-  const category = pool[Math.floor(Math.random() * pool.length)];
+  const category = forceCategory || pool[Math.floor(Math.random() * pool.length)];
 
   // The model's own sense of "recent" is frozen at its training cutoff, which is
   // often well in the past by the time this actually runs. Without being told the

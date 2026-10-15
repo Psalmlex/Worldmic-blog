@@ -15,6 +15,7 @@
       <div style="display:flex;align-items:center;gap:10px"><button class="mobile-menu-btn" onclick="openSidebar()" aria-label="Open menu">☰</button><div class="topbar-title">AI Auto Publisher</div></div>
       <div class="topbar-actions">
         <button class="btn btn-secondary btn-sm" id="pauseResumeBtn" onclick="togglePause()" style="display:none">Pause</button>
+        <button class="btn btn-secondary btn-sm" onclick="runNow('Social News')" title="Write one funny, short Social News post right now">🔥 Social News Now</button>
         <button class="btn btn-primary btn-sm" onclick="runNow()">▶ Run Now</button>
         <div class="admin-avatar" id="adminAvatar">A</div>
       </div>
@@ -71,6 +72,11 @@
             <label class="form-label">Categories to draw topics from (comma-separated — leave blank to use existing blog categories)</label>
             <input class="form-input" id="cfgCategories" placeholder="e.g. Technology, Culture, Health" />
           </div>
+
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.85rem;font-weight:500;margin-bottom:18px">
+            <input type="checkbox" id="cfgSocialNews" style="width:auto;margin-top:3px" onchange="toggleSocialNews(this.checked)" />
+            <span>🔥 Include <strong>Social News</strong> — short, funny posts about what popular accounts and creators just posted or what is going viral (built only from real, recent news coverage). Adds "Social News" to the categories above.</span>
+          </label>
 
           <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500;margin-bottom:18px">
             <input type="checkbox" id="cfgRealQuestions" style="width:auto" /> Ground topics in real Google search questions ("how to" / People Also Ask)
@@ -175,6 +181,7 @@
       document.getElementById('cfgTimes').value = (c.publishTimes || []).join(', ');
       document.getElementById('cfgWordCount').value = c.wordCount;
       document.getElementById('cfgCategories').value = (c.categories || []).join(', ');
+    syncSocialCheckbox();
       document.getElementById('cfgRealQuestions').checked = c.useRealSearchQuestions;
       document.getElementById('cfgAffiliateMode').checked = c.affiliateModeEnabled;
       document.getElementById('cfgMaxAffiliateProducts').value = c.maxAffiliateProductsPerPost;
@@ -217,9 +224,25 @@
     } catch (err) { showToast(err.message, 'error'); }
   }
 
-  async function runNow() {
+  function hasSocialCat(list) { return list.some(c => /^social news$/i.test(c)); }
+  function syncSocialCheckbox() {
+    const list = document.getElementById('cfgCategories').value.split(',').map(c => c.trim()).filter(Boolean);
+    document.getElementById('cfgSocialNews').checked = hasSocialCat(list);
+  }
+  function toggleSocialNews(on) {
+    const input = document.getElementById('cfgCategories');
+    let list = input.value.split(',').map(c => c.trim()).filter(Boolean);
+    list = list.filter(c => !/^social news$/i.test(c));
+    if (on) list.push('Social News');
+    input.value = list.join(', ');
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('cfgCategories')?.addEventListener('input', syncSocialCheckbox);
+  });
+
+  async function runNow(category) {
     try {
-      await adminFetch('/auto-publisher/run-now', { method: 'POST' });
+      await adminFetch('/auto-publisher/run-now', { method: 'POST', body: JSON.stringify(category ? { category } : {}) });
       showToast('Run started — check Job History below for progress', 'success');
       setTimeout(loadJobs, 2000);
       setTimeout(loadStatus, 2000);

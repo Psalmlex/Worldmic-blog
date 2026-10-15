@@ -52,7 +52,7 @@ router.post('/run-now', async (req, res) => {
     // Run in the background so the request returns immediately; the admin polls
     // /jobs or /status for progress rather than holding the connection open for
     // the full multi-minute pipeline.
-    runJob('manual').catch(err => console.error('[autoPublisher] manual run failed:', err.message));
+    runJob('manual', { forceCategory: req.body?.category ? String(req.body.category).slice(0, 60) : '' }).catch(err => console.error('[autoPublisher] manual run failed:', err.message));
     res.json({ message: 'Run started. Check job history for progress.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -40,6 +40,36 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Public: emoji reactions (🔥 😂 😮 💯). Light per-IP throttle so a counter can't be
+// hammered from one connection; the client also remembers what a device already tapped.
+const REACTION_KEYS = ['fire', 'laugh', 'wow', 'hundred'];
+const _reactHits = new Map();
+router.get('/:id/reactions', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: 'Post not found' });
+    const post = await Post.findById(req.params.id).select('reactions');
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const r = post.reactions || {};
+    res.json(Object.fromEntries(REACTION_KEYS.map(k => [k, r[k] || 0])));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/:id/react', async (req, res) => {
+  try {
+    const type = String(req.body?.type || '');
+    if (!REACTION_KEYS.includes(type)) return res.status(400).json({ error: 'Invalid reaction' });
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: 'Post not found' });
+    const key = `${req.ip}|${req.params.id}|${type}`;
+    const now = Date.now();
+    if (_reactHits.size > 5000) _reactHits.clear();
+    if (now - (_reactHits.get(key) || 0) < 10000) return res.status(429).json({ error: 'Slow down!' });
+    _reactHits.set(key, now);
+    const post = await Post.findByIdAndUpdate(req.params.id, { $inc: { [`reactions.${type}`]: 1 } }, { new: true }).select('reactions');
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const r = post.reactions || {};
+    res.json(Object.fromEntries(REACTION_KEYS.map(k => [k, r[k] || 0])));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Public: Like a post
 router.post('/:id/like', async (req, res) => {
   try {

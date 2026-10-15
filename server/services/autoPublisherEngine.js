@@ -62,7 +62,7 @@ async function recoverInterruptedJobs() {
   return stale.length;
 }
 
-async function runJob(trigger = 'scheduled') {
+async function runJob(trigger = 'scheduled', { forceCategory = '' } = {}) {
   if (await isAnotherJobRunning()) {
     console.log('[autoPublisher] Skipping run — a job is already in progress.');
     return null;
@@ -81,6 +81,7 @@ async function runJob(trigger = 'scheduled') {
     const recentFormats = recentJobs.map(j => j.format).filter(Boolean).slice(0, 5);
     const discovered = await discoverTopic({
       categories: config.categories,
+      forceCategory,
       recentTopics,
       recentFormats,
       useRealSearchQuestions: config.useRealSearchQuestions,
