@@ -14,7 +14,7 @@ function isGoogleSearchConfigured() {
 }
 
 const TEXT_PROVIDER_DEFAULTS = {
-  groq:       { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile' },
+  groq:       { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b' },
   openai:     { url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini' },
   openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions',   model: 'openai/gpt-4o-mini' },
   anthropic:  { url: 'https://api.anthropic.com/v1/messages',           model: 'claude-3-5-sonnet-20241022' },
@@ -32,15 +32,34 @@ async function getTextAIConfig() {
   const customModel = await getSetting('textAiModel');
   if (!apiKey && provider === 'groq') apiKey = ENV_GROQ_KEY;
   const defaults = TEXT_PROVIDER_DEFAULTS[provider] || TEXT_PROVIDER_DEFAULTS.groq;
-  return { provider, apiKey, model: (customModel && customModel.trim()) || defaults.model, url: defaults.url };
+  return { provider, apiKey, model: mapRetiredGroqModel(provider, (customModel && customModel.trim()) || defaults.model), url: defaults.url };
+}
+
+// Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant on 2026-08-16 (their
+// docs point to the gpt-oss models). A saved setting that still names a retired model
+// is transparently mapped to its replacement so jobs don't fail with "model does not exist".
+const GROQ_RETIRED_MODELS = {
+  'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant': 'openai/gpt-oss-20b',
+};
+function mapRetiredGroqModel(provider, model) {
+  return provider === 'groq' && GROQ_RETIRED_MODELS[model] ? GROQ_RETIRED_MODELS[model] : model;
 }
 
 // Groq, OpenAI, and OpenRouter all speak the same OpenAI-compatible chat/completions format
 async function callOpenAICompatible(url, apiKey, model, messages, maxTokens, extraHeaders = {}) {
-  const response = await axios.post(url, { model, max_tokens: maxTokens, messages }, {
+  const body = { model, max_tokens: maxTokens, messages };
+  // gpt-oss models are reasoning models: hidden "thinking" tokens count against
+  // max_tokens, so a small limit can leave an empty answer. Keep reasoning light and
+  // leave headroom so the visible answer always fits.
+  if (/gpt-oss/i.test(model)) {
+    body.reasoning_effort = 'low';
+    body.max_tokens = maxTokens + 1500;
+  }
+  const response = await axios.post(url, body, {
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...extraHeaders },
   });
-  return response.data.choices[0].message.content;
+  return response.data.choices[0].message.content || '';
 }
 
 // Anthropic uses a different shape: system prompt separate from the messages array
@@ -79,6 +98,23 @@ async function callTextAI(messages, maxTokens = 1500) {
       || (status ? `${provider} returned HTTP ${status}` : null)
       || err.message;
     console.error(`${provider} AI error:`, err.response?.data || msg);
+
+    // Out of credits / payment required on the configured provider: if a Groq key is
+    // available (GROQ_API_KEY in the environment — Groq has a free tier), quietly
+    // retry the same request there instead of failing the whole job. Never loops:
+    // only tried when the failing provider isn't already Groq.
+    const outOfCredits = status === 402 || /credit|insufficient|billing|payment|can only afford/i.test(String(msg));
+    if (outOfCredits && provider !== 'groq' && ENV_GROQ_KEY) {
+      try {
+        console.warn(`[ai] ${provider} is out of credits — falling back to Groq for this request.`);
+        return (await callOpenAICompatible(TEXT_PROVIDER_DEFAULTS.groq.url, ENV_GROQ_KEY, TEXT_PROVIDER_DEFAULTS.groq.model, messages, Math.min(maxTokens, 8000))).trim();
+      } catch (fbErr) {
+        console.error('[ai] Groq fallback also failed:', fbErr.response?.data || fbErr.message);
+      }
+    }
+    if (outOfCredits) {
+      throw new Error(`AI provider "${provider}" is out of credits. Top up the account (or switch to a free provider such as Groq in Admin → Settings → AI Configuration). Original message: ${msg}`);
+    }
     throw new Error(msg);
   }
 }
